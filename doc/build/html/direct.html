@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>DIRECT &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="index.html" />
+    <link rel="next" title="Code documentations" href="modules/mod.html" />
+    <link rel="prev" title="Getting started" href="getting_started.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="modules/mod.html" title="Code documentations"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="getting_started.html" title="Getting started"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">pygot 0.1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="direct">
+<span id="id1"></span><h1>DIRECT<a class="headerlink" href="#direct" title="Permalink to this headline">¶</a></h1>
+<p>DIviding RECTangle is a well known method in global optimization.  We have implemented here with a few tweaks and ideas of our own</p>
+<div class="section" id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Permalink to this headline">¶</a></h2>
+<p>First, we are going to load the required modules and also define our objective function - the Rosenbrock function.  We use a set of relatively conservative bounds <span class="math">\(x \in [-2,2]^{2}\)</span></p>
+<div class="highlight-ipython"><div class="highlight"><pre><span class="gp">In [1]: </span><span class="kn">from</span> <span class="nn">pygot.direct</span> <span class="kn">import</span> <span class="n">directAlg</span><span class="p">,</span> <span class="n">optimTestFun</span><span class="p">,</span> <span class="n">plotDirectBox</span><span class="p">,</span> <span class="n">IdConditionType</span>
+
+<span class="gp">In [2]: </span><span class="kn">import</span> <span class="nn">numpy</span>
+
+<span class="gp">In [3]: </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="gp">In [4]: </span><span class="n">boundSize</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="gp">In [5]: </span><span class="n">lb</span> <span class="o">=</span> <span class="o">-</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">boundSize</span>
+
+<span class="gp">In [6]: </span><span class="n">ub</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">boundSize</span>
+
+<span class="gp">In [7]: </span><span class="n">func</span> <span class="o">=</span> <span class="n">optimTestFun</span><span class="o">.</span><span class="n">rosen</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="original-form">
+<h2>Original form<a class="headerlink" href="#original-form" title="Permalink to this headline">¶</a></h2>
+<p>In the seminal paper by Jones et al. it uses an <span class="math">\(\varepsilon\)</span> condition to determine the dividing boxes.  We have to explicitly tell it to use the this condition via <code class="xref py py-func docutils literal"><span class="pre">IdConditionType()</span></code>, which is Soft in this case</p>
+<div class="highlight-ipython"><div class="highlight"><pre><span class="gp">In [8]: </span><span class="n">rectListOptim</span><span class="p">,</span><span class="n">output</span> <span class="o">=</span> <span class="n">directAlg</span><span class="o">.</span><span class="n">directOptim</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">iteration</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">numBox</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">conditionType</span> <span class="o">=</span> <span class="n">IdConditionType</span><span class="o">.</span><span class="n">Soft</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">targetMin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+<span class="gp">   ...: </span>                                             <span class="n">full_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="gp">   ...: </span>
+
+<span class="gp">In [9]: </span><span class="n">plotDirectBox</span><span class="p">(</span><span class="n">rectListOptim</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="_images/directSoft.png" src="_images/directSoft.png" />
+<p>The plots show how the distribution of boxes.  When the condition is not set, by default, it progresses using the Pareto front condition as seen below</p>
+<div class="highlight-ipython"><div class="highlight"><pre><span class="gp">In [10]: </span><span class="kn">from</span> <span class="nn">pygot.direct</span> <span class="kn">import</span> <span class="n">directUtil</span>
+
+<span class="gp">In [11]: </span><span class="n">rectListOptim</span><span class="p">,</span><span class="n">output</span> <span class="o">=</span> <span class="n">directAlg</span><span class="o">.</span><span class="n">directOptim</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span>
+<span class="gp">   ....: </span>                                             <span class="n">iteration</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<span class="gp">   ....: </span>                                             <span class="n">numBox</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<span class="gp">   ....: </span>                                             <span class="n">targetMin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<span class="gp">   ....: </span>                                             <span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+<span class="gp">   ....: </span>                                             <span class="n">full_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="gp">   ....: </span>
+
+<span class="gp">In [12]: </span><span class="n">potentialIndex</span> <span class="o">=</span> <span class="n">directUtil</span><span class="o">.</span><span class="n">identifyPotentialOptimalObjectPareto</span><span class="p">(</span><span class="n">rectListOptim</span><span class="p">)</span>
+
+<span class="gp">In [13]: </span><span class="k">print</span> <span class="n">potentialIndex</span>
+<span class="go">[54, 22, 215, 176, 186, 206]</span>
+
+<span class="gp">In [14]: </span><span class="n">directUtil</span><span class="o">.</span><span class="n">plotParetoFrontRect</span><span class="p">(</span><span class="n">rectListOptim</span><span class="p">,</span><span class="n">potentialIndex</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="_images/directParetoFront.png" src="_images/directParetoFront.png" />
+<p>In this particular case, the Pareto front condition performs better.  This though, is not a guarantee and using the Pareot front usually result in a lot more function evaluations</p>
+<div class="highlight-ipython"><div class="highlight"><pre><span class="gp">In [15]: </span><span class="n">plotDirectBox</span><span class="p">(</span><span class="n">rectListOptim</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="gp">In [16]: </span><span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="_images/directPareto.png" src="_images/directPareto.png" />
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">DIRECT</a><ul>
+<li><a class="reference internal" href="#setup">Setup</a></li>
+<li><a class="reference internal" href="#original-form">Original form</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="getting_started.html"
+                        title="previous chapter">Getting started</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="modules/mod.html"
+                        title="next chapter">Code documentations</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/direct.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+      |
+      <a href="_sources/direct.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pygot.direct.directUtil &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pygot 0.1.0 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pygot.direct.directUtil</h1><div class="highlight"><pre>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s">&#39;IdConditionType&#39;</span><span class="p">,</span>
+    <span class="s">&#39;plotDirectBox&#39;</span><span class="p">,</span>
+    <span class="s">&#39;plotDirectPolygon&#39;</span><span class="p">,</span>
+    <span class="s">&#39;plotParetoFrontRect&#39;</span><span class="p">,</span>
+    <span class="s">&#39;plotParetoFrontPoly&#39;</span>
+    <span class="p">]</span>
+
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Enum</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">scipy.spatial</span>
+
+<span class="c"># cannot do this because of the reverse importation</span>
+<span class="c">#from rectOperation import identifyPotentialOptimalRectanglePareto</span>
+
+<span class="k">class</span> <span class="nc">IdConditionType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<div class="viewcode-block" id="IdConditionType"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directUtil.IdConditionType">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This is an Enum describing the different conditions allowed when identifying</span>
+<span class="sd">    the rectangles with potential.</span>
+<span class="sd">    </span>
+<span class="sd">    The following four types of transitions are available.</span>
+<span class="sd">    </span>
+<span class="sd">    Pareto = boxes that define the Pareto front of f(x) and size of box</span>
+<span class="sd">    </span>
+<span class="sd">    Strong = Strong condition using the estimated Lipschitz constant</span>
+<span class="sd">    </span>
+<span class="sd">    Soft = Soft condition using the estimated Lipschitz constant</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">Pareto</span> <span class="o">=</span> <span class="s">&#39;Pareto&#39;</span>
+    <span class="n">Strong</span> <span class="o">=</span> <span class="s">&#39;Strong&#39;</span>
+    <span class="n">Soft</span> <span class="o">=</span> <span class="s">&#39;Soft&#39;</span>
+    
+<span class="k">def</span> <span class="nf">findLowestObjIndex1</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span></div>
+    <span class="c"># now we wish to find the rectangle with the lowest objective function</span>
+    <span class="n">minObj</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+    <span class="n">minObjIndex</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">minObj</span><span class="p">):</span>
+            <span class="n">minObjIndex</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="n">minObj</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+    
+    <span class="k">return</span> <span class="n">minObjIndex</span>
+    
+<span class="k">def</span> <span class="nf">findLowestObjIndex2</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span>
+    <span class="c"># now we wish to find the rectangle with the lowest objective function</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+
+<span class="c"># apparently, this is the fastest way to find argmin</span>
+<span class="k">def</span> <span class="nf">findLowestObjIndex</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span>
+    <span class="c"># now we wish to find the rectangle with the lowest objective function</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rectList</span><span class="p">:</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">getFx</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">findLowestObjIndex4</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span>
+    <span class="c"># now we wish to find the rectangle with the lowest objective function</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rectList</span><span class="p">:</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">getFx</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">findHighestObjIndex2</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span>
+    <span class="c"># now we wish to find the rectangle with the highest objective function</span>
+    <span class="n">maxObj</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+    <span class="n">maxObjIndex</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">maxObj</span><span class="p">):</span>
+            <span class="n">maxObjIndex</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="n">maxObj</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+    
+    <span class="k">return</span> <span class="n">maxObjIndex</span>
+
+<span class="k">def</span> <span class="nf">findHighestObjIndex</span><span class="p">(</span><span class="n">rectList</span><span class="p">):</span>
+    <span class="c"># now we wish to find the rectangle with the highest objective function</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rectList</span><span class="p">:</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">getFx</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">identifyPotentialOptimalObjectPareto</span><span class="p">(</span><span class="n">objList</span><span class="p">,</span><span class="n">EPSILON</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span><span class="n">uniqueDecimal</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c">## we find the rectangle with the lowest objective function value</span>
+    <span class="n">minIndex</span> <span class="o">=</span> <span class="n">findLowestObjIndex</span><span class="p">(</span><span class="n">objList</span><span class="p">)</span>
+    <span class="n">minFx</span> <span class="o">=</span> <span class="n">objList</span><span class="p">[</span><span class="n">minIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+    <span class="c"># the target value</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">minFx</span> <span class="o">-</span> <span class="n">EPSILON</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">minFx</span><span class="p">)</span>
+
+    <span class="c"># holders</span>
+    <span class="n">uniqueMeasureList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">fxList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="c"># unrolling the information</span>
+    <span class="k">for</span> <span class="n">directObj</span> <span class="ow">in</span> <span class="n">objList</span><span class="p">:</span>
+        <span class="n">uniqueMeasureList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">directObj</span><span class="o">.</span><span class="n">getMeasure</span><span class="p">())</span>
+        <span class="n">fxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">directObj</span><span class="o">.</span><span class="n">getFx</span><span class="p">())</span>
+
+    <span class="n">fxList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fxList</span><span class="p">)</span>
+    <span class="c"># round to only accurate to 8 decimal place to so that our </span>
+    <span class="c"># &quot;uniqueness&quot; is not ruined by floating point precision</span>
+    <span class="n">uniqueMeasureList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">uniqueMeasureList</span><span class="p">),</span><span class="n">uniqueDecimal</span><span class="p">)</span>
+    <span class="c"># put it in reverse order</span>
+    <span class="n">uniqueMeasureArray</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">uniqueMeasureList</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c"># extracting the information out for the largest rectangles</span>
+    <span class="n">oldV</span> <span class="o">=</span> <span class="n">uniqueMeasureArray</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c"># OVIL is the oldVIndexList</span>
+    <span class="n">OVIL</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">uniqueMeasureList</span><span class="o">==</span><span class="n">oldV</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">oldFx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">fxList</span><span class="p">[</span><span class="n">OVIL</span><span class="p">])</span>
+    <span class="c">#print(&quot;Iteration = &quot; +str(0)+ &quot; with volume &quot; +str(oldV))</span>
+
+    <span class="c"># holder</span>
+    <span class="n">listPotentialOptimalIndex</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="c"># always split one of the largest polygon</span>
+    <span class="n">listPotentialOptimalIndex</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OVIL</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">fxList</span><span class="p">[</span><span class="n">OVIL</span><span class="p">])])</span>
+    <span class="c"># time to find our points on the Pareto front</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">uniqueMeasureArray</span><span class="p">)):</span>
+        <span class="c"># find the minimum at </span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">uniqueMeasureArray</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">indexTempList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">uniqueMeasureList</span><span class="o">==</span><span class="n">V</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">indexTempList</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">fxList</span><span class="p">[</span><span class="n">indexTempList</span><span class="p">])]</span>
+        <span class="n">fx</span> <span class="o">=</span> <span class="n">fxList</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        
+        <span class="c"># the pareto condition</span>
+        <span class="c"># which boils down to </span>
+        <span class="c"># (f(x)^{t} - c) \over V^{t} \le (f(x)^{t-1} - c) \over V^{t-1}</span>
+        <span class="c"># the two have the same gradient when it is an equality sign</span>
+        <span class="c"># and the new point is accepted if f(x)^{t} is a smaller gradient</span>
+        <span class="c"># (or angle) relative to the measure V</span>
+        <span class="k">if</span> <span class="n">fx</span> <span class="o">&lt;=</span> <span class="n">c</span> <span class="o">+</span> <span class="p">(</span><span class="n">V</span><span class="o">/</span><span class="n">oldV</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">c</span><span class="p">):</span>
+            <span class="n">listPotentialOptimalIndex</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="c"># if we have a new point, we have a new gradient</span>
+            <span class="n">oldV</span> <span class="o">=</span> <span class="n">V</span>
+            <span class="n">oldFx</span> <span class="o">=</span> <span class="n">fx</span>
+
+    <span class="c"># if we want to include the minimum, then lets go for it!</span>
+    <span class="k">if</span> <span class="n">includeMin</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">minIndex</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">listPotentialOptimalIndex</span><span class="p">:</span>
+            <span class="n">listPotentialOptimalIndex</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">minIndex</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">listPotentialOptimalIndex</span>
+
+<span class="k">def</span> <span class="nf">plotDirectBox</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">paretoIndex</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+<div class="viewcode-block" id="plotDirectBox"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directUtil.plotDirectBox">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Plot the boxes return by the DIRECT algorithm given a two dimensional problem.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    rectList: list</span>
+<span class="sd">        list of rectangles</span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bounds</span>
+<span class="sd">    ub: array like</span>
+<span class="sd">        upper bounds</span>
+<span class="sd">    scaleOutput: bool</span>
+<span class="sd">        True if the input boxes have been scaled to 0,1</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">lb</span><span class="o">.</span><span class="n">size</span><span class="o">!=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Can only plot objective function of 2 dimension&quot;</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">scaleOutput</span><span class="p">:</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    
+    <span class="c"># the whole area</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ub</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ub</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ub</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ub</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lb</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;black&#39;</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">rectObj</span> <span class="ow">in</span> <span class="n">rectList</span><span class="p">:</span>
+        <span class="c"># plot for rectangle i</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        
+        <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+        
+        <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getUB</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+        
+        <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getUB</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getUB</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+        
+        <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getUB</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+        
+        <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rectObj</span><span class="o">.</span><span class="n">getLB</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s">&#39;black&#39;</span><span class="p">)</span>
+    
+    <span class="n">rectLowestObjIndex</span> <span class="o">=</span> <span class="n">findLowestObjIndex</span><span class="p">(</span><span class="n">rectList</span><span class="p">)</span>
+    <span class="n">location</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">rectLowestObjIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">location</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">location</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s">&#39;rD&#39;</span><span class="p">)</span>
+    
+    <span class="c"># index = identifyPotentialOptimalRectanglePareto(rectList)</span>
+    <span class="k">if</span> <span class="n">paretoIndex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;Number of potentially optimal rectangle = &quot;</span> <span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">paretoIndex</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">paretoIndex</span><span class="p">:</span>
+            <span class="n">location</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">location</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">location</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s">&#39;bo&#39;</span><span class="p">)</span>
+        
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="c">#plt.savefig(&quot;rect&quot;)</span>
+
+<span class="k">def</span> <span class="nf">plotDirectPolygon</span><span class="p">(</span><span class="n">polyList</span><span class="p">,</span><span class="n">paretoIndex</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">lb</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">ub</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span></div>
+<div class="viewcode-block" id="plotDirectPolygon"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directUtil.plotDirectPolygon">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Plot the boxes return by the DIRECT algorithm given a two dimensional problem.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    polyList: list</span>
+<span class="sd">        list of polygon</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+    <span class="n">A</span><span class="p">,</span><span class="n">b</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">getInequality</span><span class="p">()</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span><span class="o">!=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Can only plot objective function of 2 dimension&quot;</span><span class="p">)</span>        
+
+    <span class="k">for</span> <span class="n">polyObj</span> <span class="ow">in</span> <span class="n">polyList</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">hasSplit</span><span class="p">()</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="n">V</span> <span class="o">=</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">getVertices</span><span class="p">()</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+            <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+            <span class="c"># plot a single polygon</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="n">V</span>
+            <span class="c"># plt.plot(points[:,0], points[:,1], &#39;o&#39;)</span>
+            <span class="c"># plt.plot(x0[0], x0[1], &#39;go&#39;)</span>
+            <span class="k">for</span> <span class="n">simplex</span> <span class="ow">in</span> <span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="n">simplex</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="n">simplex</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="s">&#39;k-&#39;</span><span class="p">)</span>
+    
+    <span class="n">rectLowestObjIndex</span> <span class="o">=</span> <span class="n">findLowestObjIndex</span><span class="p">(</span><span class="n">polyList</span><span class="p">)</span>
+    <span class="n">location</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">rectLowestObjIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">location</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">location</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s">&#39;rD&#39;</span><span class="p">)</span>
+    
+    <span class="c"># index = identifyPotentialOptimalRectanglePareto(rectList)</span>
+    <span class="k">if</span> <span class="n">paretoIndex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;Number of potentially optimal rectangle = &quot;</span> <span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">paretoIndex</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">paretoIndex</span><span class="p">:</span>
+            <span class="n">location</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">location</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">location</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s">&#39;bo&#39;</span><span class="p">)</span>
+        
+    <span class="k">if</span> <span class="n">lb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="n">lb</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">ub</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="n">lb</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">ub</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">plotParetoFrontRect</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">paretoIndex</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span></div>
+<div class="viewcode-block" id="plotParetoFrontRect"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directUtil.plotParetoFrontRect">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Plot the Pareto front formed by the input boxes</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    rectList: list</span>
+<span class="sd">        list of rectangles</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">rect</span> <span class="ow">in</span> <span class="n">rectList</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">rect</span><span class="o">.</span><span class="n">getMeasure</span><span class="p">(),</span><span class="n">rect</span><span class="o">.</span><span class="n">getFx</span><span class="p">(),</span><span class="s">&#39;bo&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">paretoIndex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">paretoIndex</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getMeasure</span><span class="p">(),</span><span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">(),</span><span class="s">&#39;ro&#39;</span><span class="p">)</span>
+
+    <span class="c">#plt.ylim(0,1000)</span>
+    <span class="c">#plt.xlim(0,0.04)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">plotParetoFrontPoly</span><span class="p">(</span><span class="n">polyList</span><span class="p">,</span><span class="n">paretoIndex</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span></div>
+<div class="viewcode-block" id="plotParetoFrontPoly"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directUtil.plotParetoFrontPoly">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Plot the Pareto front formed by the input boxes</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    rectList: list</span>
+<span class="sd">        list of rectangles</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">poly</span> <span class="ow">in</span> <span class="n">polyList</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">hasSplit</span><span class="p">()</span><span class="o">==</span><span class="bp">False</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">getMeasure</span><span class="p">(),</span><span class="n">poly</span><span class="o">.</span><span class="n">getFx</span><span class="p">(),</span><span class="s">&#39;bo&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">paretoIndex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">paretoIndex</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getMeasure</span><span class="p">(),</span><span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">(),</span><span class="s">&#39;ro&#39;</span><span class="p">)</span>
+
+    <span class="c">#plt.ylim(0,1000)</span>
+    <span class="c">#plt.xlim(0,0.04)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

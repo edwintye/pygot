@@ -1,0 +1,664 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pygot.direct.directAlg &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pygot 0.1.0 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pygot.direct.directAlg</h1><div class="highlight"><pre>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s">&#39;direct&#39;</span><span class="p">,</span>
+    <span class="s">&#39;directOptim&#39;</span>
+    <span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">from</span> <span class="nn">rectOperation</span> <span class="kn">import</span> <span class="n">divideGivenRectangle</span>
+<span class="kn">from</span> <span class="nn">rectOperation</span> <span class="kn">import</span> <span class="n">identifyPotentialOptimalRectangleLipschitz</span>
+<span class="kn">from</span> <span class="nn">rectOperation</span> <span class="kn">import</span> <span class="n">identifyPotentialOptimalRectanglePareto</span>
+<span class="kn">from</span> <span class="nn">rectOperation</span> <span class="kn">import</span> <span class="n">inverseScaleLocation</span><span class="p">,</span> <span class="n">inverseScaleBounds</span>
+
+<span class="kn">from</span> <span class="nn">polyOperation</span> <span class="kn">import</span> <span class="n">triangulatePolygon</span>
+<span class="kn">from</span> <span class="nn">polyOperation</span> <span class="kn">import</span> <span class="n">divideGivenPolygon</span>
+<span class="kn">from</span> <span class="nn">polyOperation</span> <span class="kn">import</span> <span class="n">addBoxToInequalityLBUB</span>
+<span class="kn">from</span> <span class="nn">polyOperation</span> <span class="kn">import</span> <span class="n">identifyPotentialOptimalPolygonPareto</span>
+
+<span class="kn">from</span> <span class="nn">directUtil</span> <span class="kn">import</span> <span class="n">IdConditionType</span><span class="p">,</span> <span class="n">findLowestObjIndex</span><span class="p">,</span> <span class="n">plotDirectPolygon</span>
+
+<span class="kn">from</span> <span class="nn">rectOperation</span> <span class="kn">import</span> <span class="n">RectangleObj</span>
+<span class="kn">from</span> <span class="nn">polyOperation</span> <span class="kn">import</span> <span class="n">PolygonObj</span>
+
+<span class="n">TOLERENCE</span> <span class="o">=</span> <span class="mf">1E-4</span> <span class="c">#class rectOperation:</span>
+<span class="n">abstol</span> <span class="o">=</span> <span class="mf">1e-8</span>
+<span class="n">reltol</span> <span class="o">=</span> <span class="mf">1e-8</span>
+
+<span class="k">class</span> <span class="nc">direct</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="direct"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.direct">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    DIRECT object</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func: callable</span>
+<span class="sd">        objective function</span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bounds for the parameters</span>
+<span class="sd">    ub: array like</span>
+<span class="sd">        upper bounds for the parameters</span>
+<span class="sd">    A: array like, optional</span>
+<span class="sd">        matrix of A in Ax&lt;=b </span>
+<span class="sd">    b: array like, optional</span>
+<span class="sd">        vector of b in Ax&lt;=b</span>
+<span class="sd">    conditionType: enum, optional</span>
+<span class="sd">        of class :class:`.IdConditionType`.  Defaults to Pareto like condition</span>
+<span class="sd">        to select the next set of boxes</span>
+<span class="sd">    targetMin: float, optional</span>
+<span class="sd">        the target (best possible) minimum, i.e. 0 for a square/absolute loss</span>
+<span class="sd">    EPSILON: float, optional</span>
+<span class="sd">        parameter to determine how local the search it</span>
+<span class="sd">    TOLERENCE: float, optional</span>
+<span class="sd">        tolerence for \varepsilon-optimal condition</span>
+<span class="sd">        </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">func</span><span class="p">,</span>
+                 <span class="n">lb</span><span class="p">,</span>
+                 <span class="n">ub</span><span class="p">,</span>
+                 <span class="n">A</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">b</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">conditionType</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">targetMin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">EPSILON</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+                 <span class="n">TOLERENCE</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;     </span>
+<span class="sd">        Constructor</span>
+<span class="sd">        </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lb</span><span class="p">)</span>
+
+        <span class="c"># we always scale the bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_boundDiff</span> <span class="o">=</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scaleLB</span> <span class="o">=</span> <span class="o">-</span><span class="n">lb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lb</span> <span class="o">=</span> <span class="n">lb</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ub</span> <span class="o">=</span> <span class="n">ub</span>
+        
+        <span class="c"># other information</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_A</span> <span class="o">=</span> <span class="n">A</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_b</span> <span class="o">=</span> <span class="n">b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conditionType</span> <span class="o">=</span> <span class="n">conditionType</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_targetMin</span> <span class="o">=</span> <span class="n">targetMin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_EPSILON</span> <span class="o">=</span> <span class="n">EPSILON</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_TOLERENCE</span> <span class="o">=</span> <span class="n">TOLERENCE</span>
+
+        <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="c"># and we go and find the set of inequalities that define our</span>
+            <span class="c"># convex polygon</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_G</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_h</span> <span class="o">=</span> <span class="n">addBoxToInequalityLBUB</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_objList</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">initialDivide</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="direct.initialDivide"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.direct.initialDivide">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        The first divide from the origin</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        =======</span>
+<span class="sd">        list:</span>
+<span class="sd">            a list of objects, either of type :class:`.PolygonObj` or </span>
+<span class="sd">            :class:`.RectangleObj` depending on what type of equalities</span>
+<span class="sd">            were used</span>
+<span class="sd">        &#39;&#39;&#39;</span>       
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialDivideRect</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialDividePoly</span><span class="p">()</span>
+    
+    <span class="k">def</span> <span class="nf">initialDivideRect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="direct.initialDivideRect"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.direct.initialDivideRect">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        The first divide from the origin for box constraints</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        =======</span>
+<span class="sd">        list:</span>
+<span class="sd">            a list of objects, of type :class:`.RectangleObj` </span>
+<span class="sd">            </span>
+<span class="sd">        &#39;&#39;&#39;</span>     
+        <span class="c"># lb are ub are standardized to [0,1]</span>
+        <span class="n">boxLB</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_numParam</span><span class="p">)</span>
+        <span class="n">boxUB</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_numParam</span><span class="p">)</span>
+        
+        <span class="c"># the center if obviously the average between the lb and ub</span>
+        <span class="n">location</span> <span class="o">=</span> <span class="p">(</span><span class="n">boxUB</span> <span class="o">-</span> <span class="n">boxLB</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="c"># find f(x)</span>
+        <span class="n">fx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">(</span><span class="n">inverseScaleLocation</span><span class="p">(</span><span class="n">location</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_scaleLB</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_boundDiff</span><span class="p">))</span>
+        <span class="c"># initialize the object</span>
+        <span class="n">rectObj</span> <span class="o">=</span> <span class="n">RectangleObj</span><span class="p">(</span><span class="n">fx</span><span class="p">,</span><span class="n">boxLB</span><span class="p">,</span><span class="n">boxUB</span><span class="p">,</span><span class="n">location</span><span class="p">)</span>
+        <span class="c"># and divide it the first time</span>
+        <span class="k">return</span> <span class="n">divideGivenRectangle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">,</span><span class="n">rectObj</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_scaleLB</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_boundDiff</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">initialDividePoly</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="direct.initialDividePoly"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.direct.initialDividePoly">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        The first divide from the origin under linear equalities.  This performs</span>
+<span class="sd">        a triangulation on the polygon.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        =======</span>
+<span class="sd">        list:</span>
+<span class="sd">            a list of objects, of type :class:`.PolygonObj` </span>
+<span class="sd">            </span>
+<span class="sd">        &#39;&#39;&#39;</span>     
+        
+        <span class="n">polyObj</span> <span class="o">=</span> <span class="n">PolygonObj</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_G</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_h</span><span class="p">)</span>
+               
+        <span class="c">#return divideGivenPolygon(self._func,polyObj)</span>
+        <span class="k">return</span> <span class="n">triangulatePolygon</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">,</span><span class="n">polyObj</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">divide</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">iteration</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">numBox</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span></div>
+<div class="viewcode-block" id="direct.divide"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.direct.divide">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Dividing up the parameter space with respect to the type of bounds</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        iteration: int, optional</span>
+<span class="sd">            maximum number of iterations allowed. Defaults to 50</span>
+<span class="sd">        numBox: int, optional</span>
+<span class="sd">            maximum number of boxes allowed. Defaults to 1000</span>
+<span class="sd">        scaleOutput: bool, optional</span>
+<span class="sd">            the rectangles will be scaled to between bounds 0 and 1 if True.  </span>
+<span class="sd">            Note that we scale only when box constraints are present</span>
+<span class="sd">        full_output: bool, optional</span>
+<span class="sd">            if extra information is required</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        objList: list</span>
+<span class="sd">            list of the objects after dividing</span>
+<span class="sd">        infodict : dict, only returned if full_output == True</span>
+<span class="sd">            Dictionary containing additional output information</span>
+
+<span class="sd">            =========  ============================================================</span>
+<span class="sd">            key        meaning</span>
+<span class="sd">            =========  ============================================================</span>
+<span class="sd">            &#39;message&#39;  reason for stopping</span>
+<span class="sd">            &#39;fx&#39;       progress of the objective value</span>
+<span class="sd">            &#39;iter&#39;     number of iterations taken</span>
+<span class="sd">            &#39;scale&#39;    if the bounds on the output has been scaled</span>
+<span class="sd">            &#39;newBox&#39;   number of new box in each iteration</span>
+<span class="sd">            &#39;numBox&#39;   final number of box</span>
+<span class="sd">            &#39;bi&#39;       index of the box with the smallest objective value</span>
+<span class="sd">            &#39;x&#39;        the set of parameters with the smallest objective value</span>
+<span class="sd">            &#39;mt&#39;       Different type of moves.  </span>
+<span class="sd">                       0 = Pareto.  </span>
+<span class="sd">                       1 = 0 + current object with lowest objective value.</span>
+<span class="sd">                       2 = 0 + obj with center in the same direct as the gradient </span>
+<span class="sd">                       from previous object with lowest objective value.</span>
+<span class="sd">                       3 = 1 + 2</span>
+<span class="sd">            =========  ============================================================  </span>
+
+<span class="sd">        &#39;&#39;&#39;</span>     
+        
+        <span class="c"># holders in case we want more output information</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">minFxList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">moveType</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">newBox</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">numRepeat</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c"># we assume that we do not want to include the minimum when considering </span>
+        <span class="c"># the divisions</span>
+        <span class="n">includeMin</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">includeLocal</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c"># define some arbitrary large number</span>
+        <span class="n">oldFx</span> <span class="o">=</span> <span class="mf">1e8</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_objList</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">directObjList</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialDivide</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">directObjList</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_objList</span><span class="p">)</span>
+
+        <span class="c">## plain old iteration</span>
+        <span class="n">currentNumBox</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">iteration</span><span class="p">):</span>
+            <span class="c"># includeLocal = True</span>
+            <span class="c">## to do, Pareto front for the size of boxes vs f(x)</span>
+            <span class="c">## identification</span>
+            <span class="c"># print includeMin</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span><span class="p">:</span>
+                <span class="n">directObjList</span> <span class="o">=</span> <span class="n">_divideRect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">,</span><span class="n">directObjList</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_scaleLB</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_boundDiff</span><span class="p">,</span><span class="n">conditionType</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_conditionType</span><span class="p">,</span><span class="n">targetMin</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_targetMin</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="n">includeMin</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">directObjList</span> <span class="o">=</span> <span class="n">_dividePoly</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">,</span><span class="n">directObjList</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="n">includeMin</span><span class="p">,</span><span class="n">includeLocal</span><span class="o">=</span><span class="n">includeLocal</span><span class="p">)</span>
+      
+            <span class="c"># more information recording</span>
+            <span class="n">newBox</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">currentNumBox</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">includeMin</span><span class="p">:</span>
+                    <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">includeMin</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">includeLocal</span><span class="p">:</span>
+                        <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">includeLocal</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">includeMin</span><span class="p">:</span>
+                        <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">moveType</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                
+            <span class="c"># now we have the list of box, after split</span>
+            <span class="n">minIndex</span> <span class="o">=</span> <span class="n">findLowestObjIndex</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span>
+            <span class="n">fx</span> <span class="o">=</span> <span class="n">directObjList</span><span class="p">[</span><span class="n">minIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span><span class="o">!=</span><span class="n">currentNumBox</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># this will only happen if we are using a Lipschitz type condition</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Cannot identify a suitable box to split&quot;</span> 
+                <span class="k">break</span>
+
+            <span class="c"># check out other conditions that will lead us to stop</span>
+            <span class="c"># now we want to know the number of boxes after the iteration</span>
+            <span class="n">currentNumBox</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span>
+            <span class="c"># we know that fx should always be smaller or equal to oldFx</span>
+            <span class="c"># print (oldFx - fx)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">currentNumBox</span> <span class="o">&gt;=</span> <span class="n">numBox</span><span class="p">):</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Exceeded the number of Box, &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">numBox</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">abstol</span> <span class="ow">or</span> <span class="p">((</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span><span class="o">/</span><span class="n">fx</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">reltol</span><span class="p">:</span>
+                <span class="n">numRepeat</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">numRepeat</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+                    <span class="n">includeLocal</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">if</span> <span class="n">numRepeat</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+                        <span class="n">includeMin</span> <span class="o">=</span> <span class="bp">True</span>
+                        <span class="k">if</span> <span class="n">numRepeat</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">:</span>
+                            <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;No major improvement in f(x) in 10 consecutive iteration. Absolute difference is &quot;</span> <span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span><span class="o">+</span> <span class="s">&quot;and relative difference is &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">((</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span><span class="o">/</span><span class="n">fx</span><span class="p">)</span>
+                            <span class="k">break</span>
+                        
+                <span class="n">oldFx</span> <span class="o">=</span> <span class="n">fx</span>
+                <span class="n">minFxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">oldFx</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_targetMin</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_EPSILON</span><span class="p">):</span>
+                <span class="c"># this is a special condition because if we have a target, then it </span>
+                <span class="c"># should be respected (aka I ain&#39;t going to question your prior)</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Reached the target minimum (within epsilon)&quot;</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">oldFx</span> <span class="o">=</span> <span class="n">fx</span>
+                <span class="n">minFxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">oldFx</span><span class="p">)</span>
+                <span class="n">numRepeat</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">includeMin</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="n">includeLocal</span> <span class="o">=</span> <span class="bp">False</span>
+        
+        <span class="c"># end for iteration</span>
+
+        <span class="c"># make a copy within the object itself</span>
+        <span class="c"># so we can operate more on it</span>
+        <span class="c"># this object is always scaled</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_objList</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span>
+
+        <span class="c">#3 scale it if we have to</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rectType</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">scaleOutput</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)):</span>
+                    <span class="n">directObjList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">inverseScaleBounds</span><span class="p">(</span><span class="n">directObjList</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="bp">self</span><span class="o">.</span><span class="n">_scaleLB</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_boundDiff</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+            <span class="n">output</span><span class="p">[</span><span class="s">&#39;scale&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaleOutput</span>
+            <span class="k">if</span> <span class="n">iteration</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;mt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">moveType</span><span class="p">)</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;iter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="o">+</span><span class="mi">1</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;numBox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">directObjList</span><span class="p">)</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;newBox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">newBox</span><span class="p">))</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;bi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">minIndex</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">directObjList</span><span class="p">[</span><span class="n">minIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;fx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">minFxList</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s">&#39;message&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;Reached the maximum number of iterations allowed&#39;</span>
+            <span class="k">return</span> <span class="n">directObjList</span><span class="p">,</span><span class="n">output</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">directObjList</span>
+
+<span class="k">def</span> <span class="nf">_divideRect</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">rectList</span><span class="p">,</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">,</span><span class="n">conditionType</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">targetMin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span> </div></div>
+    
+    <span class="k">if</span> <span class="n">conditionType</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">potentialOptimalRectangle</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">identifyPotentialOptimalRectanglePareto</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="n">includeMin</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">conditionType</span><span class="p">,</span><span class="n">IdConditionType</span><span class="p">):</span>   
+            <span class="k">if</span> <span class="n">conditionType</span> <span class="o">==</span> <span class="n">IdConditionType</span><span class="o">.</span><span class="n">Pareto</span><span class="p">:</span>
+                <span class="n">potentialOptimalRectangle</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">identifyPotentialOptimalRectanglePareto</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">includeMin</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">conditionType</span> <span class="o">==</span> <span class="n">IdConditionType</span><span class="o">.</span><span class="n">Strong</span><span class="p">:</span>
+                <span class="n">potentialOptimalRectangle</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">identifyPotentialOptimalRectangleLipschitz</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">strongCondition</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span><span class="n">targetMin</span><span class="o">=</span><span class="n">targetMin</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">conditionType</span> <span class="o">==</span> <span class="n">IdConditionType</span><span class="o">.</span><span class="n">Soft</span><span class="p">:</span>
+                <span class="n">potentialOptimalRectangle</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">identifyPotentialOptimalRectangleLipschitz</span><span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">strongCondition</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">targetMin</span><span class="o">=</span><span class="n">targetMin</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span> 
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Expecting input of type IdConditionType&quot;</span><span class="p">)</span>
+
+    <span class="c"># sort and order</span>
+    <span class="n">potentialOptimalRectangle</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="c"># invert the sort order, which is sort of wtf because numpy doesn&#39;t have a </span>
+    <span class="c"># sort in decreasing order</span>
+    <span class="n">potentialOptimalRectangle</span> <span class="o">=</span> <span class="n">potentialOptimalRectangle</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c">## this will only happen if we are not using the Pareto front condition</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">potentialOptimalRectangle</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">rectList</span>
+        
+    <span class="c"># print len(potentialOptimalRectangle)</span>
+    <span class="k">for</span> <span class="n">actingIndex</span> <span class="ow">in</span> <span class="n">potentialOptimalRectangle</span><span class="p">:</span>
+        <span class="c"># extract the object</span>
+        <span class="n">rectObj</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">actingIndex</span><span class="p">]</span>
+        <span class="n">newRectList</span> <span class="o">=</span> <span class="n">divideGivenRectangle</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">rectObj</span><span class="p">,</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">)</span>
+        <span class="c"># now remove the object that we have split</span>
+        <span class="n">rectList</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">rectObj</span><span class="p">)</span>
+        <span class="c"># print len(rectList)</span>
+        <span class="c"># print len(newRectList)</span>
+        <span class="n">rectList</span> <span class="o">+=</span> <span class="n">newRectList</span>
+        
+    <span class="k">return</span> <span class="n">rectList</span>
+
+<span class="k">def</span> <span class="nf">_dividePoly</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">polyList</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">includeLocal</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c"># the list of feasible index</span>
+    <span class="n">polyObjListIndex</span> <span class="o">=</span> <span class="n">identifyPotentialOptimalPolygonPareto</span><span class="p">(</span><span class="n">polyList</span><span class="p">,</span><span class="n">includeMin</span><span class="p">)</span>
+
+    <span class="n">numPoly</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">polyList</span><span class="p">)</span>
+    <span class="c"># arbitary minimum</span>
+    <span class="n">currentMin</span> <span class="o">=</span> <span class="mf">1e10</span>
+    <span class="n">minIndex</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">includeLocal</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numPoly</span><span class="p">):</span>
+            <span class="n">o</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">hasSplit</span><span class="p">()</span><span class="o">==</span><span class="bp">False</span> <span class="ow">and</span> <span class="n">o</span><span class="o">.</span><span class="n">isDirectionFromParent</span><span class="p">():</span>
+                <span class="c"># print &quot;pass&quot;</span>
+                <span class="c"># print &quot;Current = &quot;+str(currentMin)+ &quot; and new = &quot; +str(o.getFx())</span>
+                <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span><span class="o">&lt;=</span><span class="n">currentMin</span><span class="p">:</span>
+                    <span class="n">currentMin</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+                    <span class="n">minIndex</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="c"># now equiped with the information, we can finally proceed</span>
+        <span class="k">if</span> <span class="n">minIndex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">minIndex</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">polyObjListIndex</span><span class="p">:</span>
+                <span class="n">polyObjListIndex</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">minIndex</span><span class="p">)</span>
+                <span class="c">#print &quot;Not in&quot;</span>
+            <span class="c">#else: </span>
+                <span class="c">#print &quot;Already Included&quot;</span>
+
+    <span class="c"># for o in polyList:</span>
+    <span class="c">#     print o</span>
+
+    <span class="c"># for o in listObj:</span>
+    <span class="c">#     print &quot;\n listObj&quot;</span>
+    <span class="c">#     print o</span>
+    <span class="c">#     print o.getLocation()</span>
+
+    <span class="c"># plotDirectPolygon(polyList,polyObjListIndex)</span>
+    <span class="c"># print len(polyObjListIndex)</span>
+    <span class="c"># print &quot;Look through the list of objects&quot;</span>
+    <span class="n">polyOperatedList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">polyObjListIndex</span><span class="p">:</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="c"># print i</span>
+        <span class="c"># print o</span>
+        <span class="c"># print o.getLocation()</span>
+        <span class="c"># print o.hasSplit()</span>
+        <span class="n">polyOperatedList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="c"># polyList.remove(o)</span>
+
+        <span class="n">newPolyObjList</span> <span class="o">=</span> <span class="n">divideGivenPolygon</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">o</span><span class="p">)</span>
+        <span class="c">#plotDirectPolygon(newPolyObjList)</span>
+        <span class="c"># add to the list</span>
+        <span class="n">polyList</span> <span class="o">+=</span> <span class="n">newPolyObjList</span>    
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">polyOperatedList</span><span class="p">)):</span>
+        <span class="n">polyList</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">polyOperatedList</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        
+    <span class="c"># print &quot;\n Again&quot;</span>
+    <span class="c"># for o in listObj:</span>
+    <span class="c">#     print o</span>
+    <span class="c">#     print o.getLocation()</span>
+    <span class="c">#     print o.hasSplit()</span>
+
+    <span class="c"># # go through them</span>
+    <span class="c"># for index in polyObjListIndex:</span>
+    <span class="c">#     # divide</span>
+    <span class="c">#     newPolyObjList = divideGivenPolygon(func,polyList[index])</span>
+    <span class="c">#     # remove the original because the new list includes it</span>
+    <span class="c">#     polyList.remove(polyList[index])</span>
+    <span class="c">#     # add to the list</span>
+    <span class="c">#     polyList += newPolyObjList</span>
+
+    <span class="c"># print &quot;\n Again in the split&quot;</span>
+    <span class="c"># for o in polyOperateList:</span>
+    <span class="c">#     # information</span>
+    <span class="c">#     print o</span>
+    <span class="c">#     print o.hasSplit()</span>
+    <span class="c">#     print o.getLocation()</span>
+    <span class="c">#     print o.getVertices()</span>
+
+    <span class="c">#     # divide</span>
+    <span class="c">#     newPolyObjList = divideGivenPolygon(func,o)</span>
+    <span class="c">#     #plotDirectPolygon(newPolyObjList)</span>
+    <span class="c">#     # add to the list</span>
+    <span class="c">#     polyList += newPolyObjList</span>
+
+    <span class="k">return</span> <span class="n">polyList</span>
+
+<span class="k">def</span> <span class="nf">directOptim</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">numBox</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">conditionType</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">targetMin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">EPSILON</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="n">TOLERENCE</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="n">scaleOutput</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="viewcode-block" id="directOptim"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.directAlg.directOptim">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    DIRECT algorithm.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func: callable</span>
+<span class="sd">        Cost function </span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bounds of the parameters space</span>
+<span class="sd">    ub: callable</span>
+<span class="sd">        upper bounds of the parameters space</span>
+<span class="sd">    iteration: int</span>
+<span class="sd">        maximum number of iterations allowed</span>
+<span class="sd">    numBox: int</span>
+<span class="sd">        maximum number of boxes allowed </span>
+<span class="sd">    strongCondition: bool</span>
+<span class="sd">        if the box selection criteria should be strong</span>
+<span class="sd">    targetMin: float</span>
+<span class="sd">        the target (best possible) minimum, i.e. 0 for</span>
+<span class="sd">        a square/absolute loss</span>
+<span class="sd">    EPSILON: float</span>
+<span class="sd">        parameter to determine how local the search it</span>
+<span class="sd">    TOLERENCE: float</span>
+<span class="sd">        tolerence for :math:`\varepsilon`-optimal condition</span>
+<span class="sd">    scaleOutput: bool</span>
+<span class="sd">        the rectangles will be scaled to between bounds</span>
+<span class="sd">        0 and 1 if True</span>
+<span class="sd">    full_output: bool</span>
+<span class="sd">        if extra information is required</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    rectList: list</span>
+<span class="sd">        list of the rectangles after divide</span>
+<span class="sd">    infodict : dict, only returned if full_output == True</span>
+<span class="sd">        Dictionary containing additional output information</span>
+
+<span class="sd">        =========  ==============================================</span>
+<span class="sd">        key        meaning</span>
+<span class="sd">        =========  ==============================================</span>
+<span class="sd">        &#39;message&#39;  reason for stopping</span>
+<span class="sd">        &#39;iter&#39;     number of iterations taken</span>
+<span class="sd">        &#39;scale&#39;    if the bounds on the output has been scaled</span>
+<span class="sd">        &#39;numBox&#39;   final number of box</span>
+<span class="sd">        &#39;mbi&#39;      index of the box with the smallest objective</span>
+<span class="sd">                   value</span>
+<span class="sd">        =========  ==============================================</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># holders</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">minFxList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">numRepeat</span> <span class="o">=</span> <span class="mi">0</span>
+    
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Integer number of iterations required&quot;</span><span class="p">)</span>
+        
+    <span class="k">if</span> <span class="n">numBox</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">numBox</span> <span class="o">=</span> <span class="mi">200</span>
+
+    <span class="c">## we need to find the inputted bound so that we can rescale it to \left[0,1\right]</span>
+    <span class="n">boundDiff</span> <span class="o">=</span> <span class="n">ub</span><span class="o">-</span><span class="n">lb</span>
+    <span class="n">scaleLB</span> <span class="o">=</span> <span class="o">-</span><span class="n">lb</span>
+    
+    <span class="c"># the number of parameters are!!! drum roll please...</span>
+    <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lb</span><span class="p">)</span>
+    
+    <span class="c">## reintroduce the bounds</span>
+    <span class="n">lb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">)</span>
+    <span class="n">ub</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">)</span>
+    
+    <span class="n">location</span> <span class="o">=</span> <span class="p">(</span><span class="n">ub</span><span class="o">-</span><span class="n">lb</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+    
+    <span class="n">fx</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">inverseScaleLocation</span><span class="p">(</span><span class="n">location</span><span class="p">,</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">))</span>
+    <span class="n">rectObj</span> <span class="o">=</span> <span class="n">RectangleObj</span><span class="p">(</span><span class="n">fx</span><span class="p">,</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">location</span><span class="p">)</span>
+       
+    <span class="c"># initial divide</span>
+    <span class="n">rectList</span> <span class="o">=</span> <span class="n">divideGivenRectangle</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">rectObj</span><span class="p">,</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">)</span>
+    <span class="n">oldFx</span> <span class="o">=</span> <span class="mf">1e6</span>
+
+    <span class="c">## plain old iteration</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">iteration</span><span class="p">):</span>
+        <span class="c">## to do, Pareto front for the size of boxes vs f(x)</span>
+        <span class="c">## identification</span>
+        <span class="n">rectList</span> <span class="o">=</span> <span class="n">_divideRect</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">rectList</span><span class="p">,</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">,</span><span class="n">conditionType</span><span class="o">=</span><span class="n">conditionType</span><span class="p">,</span><span class="n">targetMin</span><span class="o">=</span><span class="n">targetMin</span><span class="p">)</span>
+        <span class="n">minIndex</span> <span class="o">=</span> <span class="n">findLowestObjIndex</span><span class="p">(</span><span class="n">rectList</span><span class="p">)</span>
+        <span class="n">fx</span> <span class="o">=</span> <span class="n">rectList</span><span class="p">[</span><span class="n">minIndex</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">numBox</span><span class="p">):</span>
+            <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Exceeded the number of Box, &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">numBox</span><span class="p">)</span>
+            <span class="k">break</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">targetMin</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPSILON</span><span class="p">):</span>
+            <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Reached the target minimum (within epsilon)&quot;</span>
+            <span class="k">break</span>
+
+        <span class="c"># we know that fx should always be smaller or equal to oldFx</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">oldFx</span> <span class="o">-</span> <span class="n">fx</span><span class="p">)</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">TOLERENCE</span><span class="p">:</span>
+            <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Local minimum found&quot;</span>
+            <span class="n">minFxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fx</span><span class="p">)</span>
+            <span class="n">numRepeat</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">break</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">oldFx</span> <span class="o">==</span> <span class="n">fx</span><span class="p">):</span>
+            <span class="n">minFxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">oldFx</span><span class="p">)</span>
+            <span class="n">numRepeat</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">numRepeat</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">:</span>
+                <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;No improvement in f(x) in 10 consecutive iteration&quot;</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">oldFx</span> <span class="o">=</span> <span class="n">fx</span>
+            <span class="n">minFxList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">oldFx</span><span class="p">)</span>
+        
+    <span class="c"># end for iteration</span>
+    <span class="k">if</span> <span class="n">scaleOutput</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)):</span>
+            <span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">inverseScaleBounds</span><span class="p">(</span><span class="n">rectList</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">scaleLB</span><span class="p">,</span><span class="n">boundDiff</span><span class="p">)</span>        
+    
+    <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+        <span class="n">output</span><span class="p">[</span><span class="s">&#39;scale&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaleOutput</span>
+        <span class="n">output</span><span class="p">[</span><span class="s">&#39;iter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="o">+</span><span class="mi">1</span>
+        <span class="n">output</span><span class="p">[</span><span class="s">&#39;numBox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rectList</span><span class="p">)</span>
+        <span class="n">output</span><span class="p">[</span><span class="s">&#39;mbi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">minIndex</span>
+        <span class="n">output</span><span class="p">[</span><span class="s">&#39;fx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">minFxList</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s">&#39;message&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
+            <span class="n">output</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;Reached the maximum number of iterations allowed&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">rectList</span><span class="p">,</span><span class="n">output</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rectList</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

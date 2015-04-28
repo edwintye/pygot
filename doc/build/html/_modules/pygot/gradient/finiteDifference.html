@@ -1,0 +1,584 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pygot.gradient.finiteDifference &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pygot 0.1.0 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pygot.gradient.finiteDifference</h1><div class="highlight"><pre>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s">&#39;forward&#39;</span><span class="p">,</span>
+    <span class="s">&#39;backward&#39;</span><span class="p">,</span>
+    <span class="s">&#39;central&#39;</span><span class="p">,</span>
+    <span class="s">&#39;richardsonExtrapolation&#39;</span><span class="p">,</span>
+    <span class="s">&#39;forwardHessian&#39;</span><span class="p">,</span>
+    <span class="s">&#39;forwardGradCallHessian&#39;</span>
+    <span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<div class="viewcode-block" id="forward"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.forward">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forward finite-difference approximation</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: callable</span>
+<span class="sd">        The (scalar) function we wish to find the gradient of</span>
+<span class="sd">    x: array like</span>
+<span class="sd">        parameter value</span>
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `f`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grad: :class:`numpy.ndarray`</span>
+<span class="sd">        array of gradient</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="c"># f(x)</span>
+    <span class="c">#print(((x,) + args))</span>
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+    <span class="c">#f0 = f(x,**kwargs)</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h</span><span class="o">.</span><span class="n">size</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">h</span>
+
+    <span class="c"># memory allocation</span>
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+    
+    <span class="c"># going through the parameters</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="c">#xh = numpy.copy(x)</span>
+        <span class="n">xh</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">h</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> 
+        <span class="c"># print h</span>
+        <span class="c"># print x</span>
+        <span class="c"># print xh</span>
+        <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">f0</span><span class="p">)</span> <span class="o">/</span> <span class="n">h</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="c">#grad[k] = (f(x,**kwargs) - f0) / h[k]</span>
+    
+    <span class="k">return</span> <span class="n">grad</span>
+    
+
+<span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span></div>
+<div class="viewcode-block" id="backward"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.backward">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Backward finite-difference approximation</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: callable</span>
+<span class="sd">        The (scalar) function we wish to find the gradient of</span>
+
+<span class="sd">    x: array like</span>
+
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `f`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grad: :class:`numpy.ndarray`</span>
+<span class="sd">        array of gradient</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">epsilon</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">epsilon</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">epsilon</span>
+        
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">-=</span> <span class="n">epsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> 
+        <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f0</span> <span class="o">-</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">)))</span> <span class="o">/</span> <span class="n">epsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">grad</span>
+
+<span class="k">def</span> <span class="nf">central</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span></div>
+<div class="viewcode-block" id="central"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.central">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Central finite-difference approximation</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: callable</span>
+<span class="sd">        The (scalar) function we wish to find the gradient of</span>
+
+<span class="sd">    x: array like</span>
+
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `f`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grad: :class:`numpy.ndarray`</span>
+<span class="sd">        array of gradient</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="c">#f0 = f(*((x,) + args))</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">epsilon</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">epsilon</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">epsilon</span>
+        
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+    
+    <span class="c"># </span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="c"># f(x+h/2)</span>
+        <span class="n">xhPositive</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xhPositive</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="o">+</span> <span class="n">epsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span>
+        <span class="c"># f(x-h/2)</span>
+        <span class="n">xhNegative</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xhNegative</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">-=</span> <span class="n">epsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span>
+        <span class="c"># now the difference for the gradient</span>
+        <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xhPositive</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xhNegative</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">)))</span> <span class="o">/</span> <span class="n">epsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">grad</span>
+
+
+<span class="k">def</span> <span class="nf">richardsonExtrapolation</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span></div>
+<div class="viewcode-block" id="richardsonExtrapolation"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.richardsonExtrapolation">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Richardson extrapolation under forward finite-difference</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: callable</span>
+<span class="sd">        The (scalar) function we wish to find the gradient of</span>
+
+<span class="sd">    x: array like</span>
+
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `f`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grad: :class:`numpy.ndarray`</span>
+<span class="sd">        array of gradient</span>
+
+<span class="sd">    R: :class:`numpy.matrix`</span>
+<span class="sd">        lower triangle of the extrapolation matrix.  First column is </span>
+<span class="sd">        the gradient. Difference in diagonal represent the error</span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">TOLERANCE</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+    <span class="c">#print(kwargs)</span>
+    <span class="c">#print(x)</span>
+    <span class="c">#print(dict(x=x))</span>
+    <span class="c">#print(dict(dict(x=x).items() + kwargs.items()))</span>
+    <span class="c">#f0 = f(**dict(dict(x=x).items() + kwargs.items()))</span>
+    <span class="c">#print(kwargs.items())</span>
+    <span class="c">#f0 = f(x,**kwargs)</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">epsilon</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">epsilon</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">epsilon</span>
+        
+    <span class="n">grad</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+    <span class="n">Rlist</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">maxRow</span> <span class="o">=</span> <span class="mi">10</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">maxRow</span><span class="p">,</span><span class="n">maxRow</span><span class="p">),</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">newEpsilon</span> <span class="o">=</span> <span class="n">epsilon</span>
+        <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">newEpsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">f0</span><span class="p">)</span> <span class="o">/</span> <span class="n">newEpsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="c">#grad[k] = (f(**dict(dict(x=xh).items() + kwargs.items())) - f0) / epsilon[k]</span>
+        <span class="c">#grad[k] = ( f(xh,**kwargs) - f0) / epsilon[k]</span>
+        <span class="n">R</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">newEpsilon</span> <span class="o">=</span> <span class="n">epsilon</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">maxRow</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">newEpsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">2</span>
+            <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span>  <span class="n">newEpsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">f0</span><span class="p">)</span> <span class="o">/</span> <span class="n">newEpsilon</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="c">#grad[k] = (f(**dict(dict(x=xh).items() + kwargs.items())) - f0) / epsilon[k]</span>
+            <span class="c">#grad[k] = ( f(xh,**kwargs) - f0) / epsilon[k]</span>
+            <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">grad</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="c">#print(&quot;starting index &quot; +str(i))</span>
+            <span class="c">#print(&quot;next index &quot; +str(i+1))</span>
+            <span class="c">#print(R)</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="c">#print(R[i+1,j])</span>
+                <span class="c">#print(R[i,j])</span>
+                <span class="c">#print((4**(j+1)) * R[i+1,j] )</span>
+                <span class="c">#print(4**(j+1))</span>
+                <span class="c">#print(3*R[i+1,j])</span>
+
+                <span class="n">top</span> <span class="o">=</span> <span class="p">((</span><span class="mi">4</span><span class="o">**</span><span class="nb">float</span><span class="p">(</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span><span class="o">*</span><span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span>
+                <span class="n">bottom</span> <span class="o">=</span> <span class="p">(</span><span class="mi">4</span><span class="o">**</span><span class="nb">float</span><span class="p">(</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                
+                <span class="c">#print(str(i+1) + &quot; and &quot; + str(j+1))</span>
+                <span class="c">#print(top)</span>
+                <span class="c">#print(bottom)</span>
+                <span class="k">if</span> <span class="n">top</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">top</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">top</span> <span class="o">/</span> <span class="n">bottom</span>
+
+            <span class="c">#print(&quot;Difference &quot;+ str(R[i,i] - R[i+1,i+1]))</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">TOLERANCE</span><span class="p">:</span>
+                <span class="k">break</span>     
+            
+        <span class="c">#print(R)</span>
+        <span class="n">Rlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">]))</span>
+        
+    <span class="k">return</span> <span class="n">grad</span><span class="p">,</span><span class="n">Rlist</span>
+    
+<span class="k">def</span> <span class="nf">richardsonExtrapolationGeneric</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></div>
+    <span class="c">## TODO: fix or delete this... currently in a mess</span>
+
+    <span class="n">TOLERANCE</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+        
+    <span class="n">Rlist</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">maxRow</span> <span class="o">=</span> <span class="mi">5</span>
+
+    <span class="n">R</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">maxRow</span><span class="p">,</span><span class="n">maxRow</span><span class="p">),</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">hNew</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+    <span class="c">#out = f(*((hNew,) + args))</span>
+    <span class="c">#out = g(f=f,hNew,**kwargs)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">g</span><span class="p">(</span><span class="n">h</span><span class="o">=</span><span class="n">h</span><span class="p">,</span><span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">f</span><span class="o">=</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span><span class="o">+</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="n">R</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">out</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">maxRow</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">hNew</span> <span class="o">/=</span> <span class="mi">2</span>
+        <span class="c">#out = f(*((hNew,) + args))</span>
+        <span class="c">#out = g(f=f,hNew,**kwargs)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">g</span><span class="p">(</span><span class="n">hNew</span><span class="p">,</span><span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">f</span><span class="o">=</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span><span class="o">+</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">out</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">i</span><span class="p">):</span>
+            <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="mi">4</span><span class="o">**</span><span class="n">j</span><span class="p">)</span><span class="o">*</span><span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="mi">4</span><span class="o">**</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">R</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">TOLERANCE</span><span class="p">:</span>
+            <span class="n">Rlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">R</span><span class="p">))</span>
+            <span class="k">break</span>
+            
+    <span class="k">return</span> <span class="p">(</span><span class="n">out</span><span class="p">,</span><span class="n">Rlist</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">forwardHessian</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<div class="viewcode-block" id="forwardHessian"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.forwardHessian">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forward finite-difference approximation of the Hessian</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: callable</span>
+<span class="sd">        The (scalar) function </span>
+<span class="sd">    x: array like</span>
+<span class="sd">        parameter value</span>
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `f`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Hessian: :class:`numpy.ndarray`</span>
+<span class="sd">        2d array of the Hessian</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c"># TODO: check whether this is correct</span>
+
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h</span><span class="o">.</span><span class="n">size</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">h</span>
+
+    <span class="c"># memory allocation</span>
+    <span class="n">perturb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+    
+    <span class="c"># first, we wish to find the gradient without dividing through h</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">h</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">perturb</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+
+    <span class="c"># print &quot; with h &quot;</span>
+    <span class="c"># print h</span>
+    <span class="c"># more memory allocation</span>
+    <span class="n">Hessian</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numParam</span><span class="p">,</span><span class="n">numParam</span><span class="p">),</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+            <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">xh</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">h</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">xh</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">h</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+            <span class="n">Hessian</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">perturb</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">perturb</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">f0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">h</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+            <span class="c"># the other off diagonal</span>
+            <span class="n">Hessian</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Hessian</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">Hessian</span>
+
+
+<span class="k">def</span> <span class="nf">forwardGradCallHessian</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">h</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span></div>
+<div class="viewcode-block" id="forwardGradCallHessian"><a class="viewcode-back" href="../../../modules/gradient.html#pygot.gradient.finiteDifference.forwardGradCallHessian">[docs]</a>    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forward finite-difference approximation of the Hessian using </span>
+<span class="sd">    perturbation on the gradient function</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    g: callable</span>
+<span class="sd">        The gradient function </span>
+<span class="sd">    x: array like</span>
+<span class="sd">        parameter value</span>
+<span class="sd">    epsilon: array like</span>
+<span class="sd">        epsilon used to compute the finite difference.  Does not </span>
+<span class="sd">        have a default value because it is only allowed in </span>
+<span class="sd">        python3 but not python2 :( WTF!  So we also allow the</span>
+<span class="sd">        use of `None` here to force it to make its own mind</span>
+<span class="sd">        up!! (aka default value)</span>
+
+<span class="sd">    \*args: args, optional</span>
+<span class="sd">        Any other arguments that are to be passed to `g`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Hessian: :class:`numpy.ndarray`</span>
+<span class="sd">        2d array of the Hessian</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c"># find out the number of parameters</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+        <span class="n">numParam</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;WTF is your input? Type = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+    <span class="n">g0</span> <span class="o">=</span> <span class="n">g</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+
+    <span class="c"># epsilon checking and converting</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h</span><span class="o">.</span><span class="n">size</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numParam</span><span class="p">,</span><span class="nb">float</span><span class="p">)</span> <span class="o">*</span> <span class="n">h</span>
+
+    <span class="c"># memory allocation</span>
+    <span class="n">perturb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numParam</span><span class="p">,</span><span class="n">numParam</span><span class="p">),</span> <span class="nb">float</span><span class="p">)</span>
+    
+    <span class="c"># first, we wish to find the gradient without dividing through h</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="n">xh</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">xh</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">h</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">perturb</span><span class="p">[</span><span class="n">k</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">g</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">xh</span><span class="p">,)</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
+
+    <span class="c"># print g0</span>
+    <span class="c"># print perturb</span>
+    <span class="c"># print &quot; with h &quot;</span>
+    <span class="c"># print h</span>
+    <span class="c"># more memory allocation</span>
+    <span class="n">Hessian</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numParam</span><span class="p">,</span><span class="n">numParam</span><span class="p">),</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">numParam</span><span class="p">):</span>
+            <span class="n">Hessian</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">perturb</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">g0</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">h</span><span class="p">[</span><span class="n">j</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="n">perturb</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="n">g0</span><span class="p">[</span><span class="n">j</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">h</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="c"># the other off diagonal</span>
+            <span class="n">Hessian</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Hessian</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">Hessian</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,1360 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pygot.direct.polyOperation &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pygot 0.1.0 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pygot.direct.polyOperation</h1><div class="highlight"><pre>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+          <span class="s">&#39;PolygonObj&#39;</span> 
+          <span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">scipy.spatial</span><span class="o">,</span> <span class="nn">scipy.linalg</span>
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="kn">import</span> <span class="nn">numpy.linalg</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">cvxopt</span> <span class="c"># the base.matrix class</span>
+<span class="kn">from</span> <span class="nn">cvxopt</span> <span class="kn">import</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">spdiag</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">mul</span><span class="p">,</span> <span class="n">div</span> <span class="c"># random shit</span>
+<span class="kn">from</span> <span class="nn">cvxopt</span> <span class="kn">import</span> <span class="n">solvers</span><span class="p">,</span> <span class="n">lapack</span><span class="p">,</span> <span class="n">blas</span> <span class="c"># things to solve stuff</span>
+<span class="kn">from</span> <span class="nn">cvxopt.modeling</span> <span class="kn">import</span> <span class="n">variable</span><span class="p">,</span> <span class="n">op</span>
+
+<span class="kn">from</span> <span class="nn">directUtil</span> <span class="kn">import</span> <span class="n">findLowestObjIndex</span><span class="p">,</span> <span class="n">findHighestObjIndex</span>
+<span class="kn">from</span> <span class="nn">directUtil</span> <span class="kn">import</span> <span class="n">identifyPotentialOptimalObjectPareto</span>
+
+<span class="kn">from</span> <span class="nn">pygot.gradient.simplexGradient</span> <span class="kn">import</span> <span class="n">closestVector</span>
+
+<span class="c"># make sure we do not get crap</span>
+<span class="n">solvers</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s">&#39;show_progress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
+<span class="c"># solvers.options[&#39;reltol&#39;] = 1e-8</span>
+<span class="c"># solvers.options[&#39;abstol&#39;] = 1e-8</span>
+
+<span class="k">class</span> <span class="nc">PolygonObj</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="PolygonObj"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj">[docs]</a>    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Polygon object</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func: callable</span>
+<span class="sd">        objective function</span>
+<span class="sd">    A: array like, optional</span>
+<span class="sd">        matrix of A in Ax&lt;=b </span>
+<span class="sd">    b: array like, optional</span>
+<span class="sd">        vector of b in Ax&lt;=b</span>
+<span class="sd">    hullorV: :class:`scipy.spatial.ConvexHull` or :class:`numpy.ndarray`, optional</span>
+<span class="sd">        Either a convex hull or the vertices that define our convex hull.  If this</span>
+<span class="sd">        is not None, then information here has a higher priority than the linear </span>
+<span class="sd">        inequalities</span>
+<span class="sd">        </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">func</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">hullorV</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        
+        <span class="k">if</span> <span class="n">hullorV</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># find the center</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_location</span><span class="p">,</span><span class="n">sol</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span> <span class="o">=</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="c"># beware that the output here of A,b is of the form cvxopt.base.matrix</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+            <span class="c"># find our vertices</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_V</span> <span class="o">=</span> <span class="n">constraintToVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_location</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">hullorV</span><span class="p">)</span> <span class="ow">is</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">qhull</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">:</span>
+            <span class="c"># we assume that the hull input is correct rather</span>
+            <span class="c"># than the set of inequalities</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_V</span> <span class="o">=</span> <span class="n">extractAbVFromHull</span><span class="p">(</span><span class="n">hullorV</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_location</span> <span class="o">=</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">hullorV</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+            <span class="c"># t0 = time.time()</span>
+            <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">hullorV</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+            <span class="c"># t1 = time.time()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_V</span> <span class="o">=</span> <span class="n">extractAbVFromHull</span><span class="p">(</span><span class="n">hull</span><span class="p">)</span>
+
+            <span class="c"># t2 = time.time()</span>
+            <span class="c"># verticesToConstraint(hullorV)</span>
+            <span class="c"># t3 = time.time()</span>
+            <span class="c"># print &quot;time taken for qhull&quot;</span>
+            <span class="c"># print t1-t0</span>
+            <span class="c"># print &quot;time taken for internal&quot;</span>
+            <span class="c"># print t3-t2</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_location</span> <span class="o">=</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">hullorV</span><span class="p">)</span> <span class="ow">is</span> <span class="n">cvxopt</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">matrix</span><span class="p">:</span>
+            <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">hullorV</span><span class="p">),</span><span class="bp">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_V</span> <span class="o">=</span> <span class="n">extractAbVFromHull</span><span class="p">(</span><span class="n">hull</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_location</span> <span class="o">=</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_b</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Input for convex hull is of an unknown type&quot;</span><span class="p">)</span>
+
+        <span class="c"># now we compute the distance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_simplicesDistance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_computeDistanceToSimplices</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verticesDistance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_computeDistanceToVertices</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_maxSimplicesDistance</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_simplicesDistance</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_maxVerticesDistance</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_verticesDistance</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fx</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_location</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hasSplit</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_simplexGrad</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decreaseDirectionFromParent</span> <span class="o">=</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">getFx</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="PolygonObj.getFx"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getFx">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the objective value evaluated at the center of the polygon</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fx</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">getLocation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getLocation"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getLocation">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the center of the polygon</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_location</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getMeasure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getMeasure"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getMeasure">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the measure of the polygon in terms of size</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_maxVerticesDistance</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getVertices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getVertices"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getVertices">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the set of vertices</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_V</span>
+
+    <span class="k">def</span> <span class="nf">getDistanceToVertices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getDistanceToVertices"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getDistanceToVertices">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the set of distances from center to vertices</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_verticesDistance</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getDistanceToSimplices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getDistanceToSimplices"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getDistanceToSimplices">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the set of distances from center to the simplices</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_simplicesDistance</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getMaxDistanceToVertices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getMaxDistanceToVertices"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getMaxDistanceToVertices">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the maximum distance from the center to the vertices</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_maxVerticesDistance</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getMaxDistanceToSimplices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getMaxDistanceToSimplices"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getMaxDistanceToSimplices">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the maximum distance from the center to the simplicies</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_maxSimplicesDistance</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">getInequality</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getInequality"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getInequality">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the set of inequalities</span>
+<span class="sd">    </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        A: :class:`numpy.ndarray`</span>
+<span class="sd">            matrix A in Ax&lt;=b</span>
+<span class="sd">        b: :class:`numpy.ndarray`</span>
+<span class="sd">            vector b in Ax&lt;=b</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_b</span>
+    
+    <span class="k">def</span> <span class="nf">setDirectionFromParent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.setDirectionFromParent"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.setDirectionFromParent">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Denote this polygon as a child which it&#39;s center to the parent&#39;s </span>
+<span class="sd">        center forms the smallest angle (which is guarantee to be acute)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decreaseDirectionFromParent</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">isDirectionFromParent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.isDirectionFromParent"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.isDirectionFromParent">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the information from :func:`setDirectionFromParent`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decreaseDirectionFromParent</span>
+
+    <span class="k">def</span> <span class="nf">getGrad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.getGrad"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.getGrad">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the simplex gradient obtained given the child (after</span>
+<span class="sd">        the split)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_simplexGrad</span>
+
+    <span class="k">def</span> <span class="nf">hasSplit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.hasSplit"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.hasSplit">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        If this polygon has been split already, i.e. if this is </span>
+<span class="sd">        a parent or a child</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hasSplit</span>
+    
+    <span class="k">def</span> <span class="nf">splitThis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">childObjList</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PolygonObj.splitThis"><a class="viewcode-back" href="../../../modules/direct.html#pygot.direct.polyOperation.PolygonObj.splitThis">[docs]</a>        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Denote this polygon has splited.  Also find the gradient if it</span>
+<span class="sd">        exist</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        childObjList: list, optional</span>
+<span class="sd">            list of :class:`PolygonObj` who are the child of this polygon</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">childObjList</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># a simple split</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hasSplit</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># our split also involves finding out the simplex gradient</span>
+            <span class="n">numChild</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">childObjList</span><span class="p">)</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numChild</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_dimension</span><span class="p">))</span>
+            <span class="n">fx</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numChild</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numChild</span><span class="p">):</span>
+                <span class="n">childObj</span> <span class="o">=</span> <span class="n">childObjList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">childObj</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+                <span class="n">fx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">childObj</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+
+            <span class="c"># solve the linear system</span>
+            <span class="n">beta</span><span class="p">,</span><span class="n">resid</span><span class="p">,</span><span class="n">r</span><span class="p">,</span><span class="n">s</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">X</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">getLocation</span><span class="p">(),</span><span class="n">fx</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">getFx</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_simplexGrad</span> <span class="o">=</span> <span class="n">beta</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hasSplit</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">self</span>
+    
+    <span class="k">def</span> <span class="nf">_checkDimension</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">value</span><span class="p">):</span></div>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimension</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Dimension of input do not conform to the object&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Expecting type numpy.ndarray&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_computeDistanceToSimplices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># only need to worry about the binding ones</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_b</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_A</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_location</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_computeDistanceToVertices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getVertices</span><span class="p">()</span>
+        <span class="n">D</span> <span class="o">=</span> <span class="n">V</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_location</span>
+        <span class="n">numVertices</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+        <span class="c"># distance holder</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">numVertices</span><span class="p">)</span>
+        <span class="c"># Euclidean distance</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">D</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])):</span>
+            <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">D</span><span class="p">[</span><span class="n">i</span><span class="p">,:])</span>
+
+        <span class="k">return</span> <span class="n">d</span>
+
+<span class="k">def</span> <span class="nf">triangulatePolygon</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">polyObj</span><span class="p">):</span></div>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Triangulate a polygon object given objective function</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func: callable</span>
+<span class="sd">        objective function</span>
+<span class="sd">    polyObj: :class:`PolygonObj`</span>
+<span class="sd">        the polygon which we want to split</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list:</span>
+<span class="sd">        the set of new simplex as well as the origin</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># TODO: think about the case where we only divide a single</span>
+    <span class="c"># dimension.</span>
+
+    <span class="c"># each polyObj carries it&#39;s own little polygon</span>
+    <span class="c"># defined by the inequalities</span>
+    <span class="n">A</span><span class="p">,</span><span class="n">b</span> <span class="o">=</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">getInequality</span><span class="p">()</span>
+        
+    <span class="n">polyList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+    <span class="c">###</span>
+    <span class="c"># </span>
+    <span class="c"># HERE, we divide the polygon into little triangles</span>
+    <span class="c"># </span>
+    <span class="c">### </span>
+
+    <span class="c"># We obtain our convex hull and the points at the vertices</span>
+    <span class="n">V</span><span class="p">,</span> <span class="n">dualHull</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">constraintToVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c"># and the convex hull in the primal space</span>
+    <span class="c"># print &quot;Reached Here&quot;</span>
+    <span class="c"># t0 = time.time()</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c"># t1 = time.time()</span>
+    <span class="c"># print t1 - t0</span>
+    <span class="n">numFace</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">numSimplices</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">numDimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+    <span class="n">numVertices</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="c"># now we split it up given the center</span>
+    
+    <span class="c"># we are going to find the distance between the vertices and the</span>
+    <span class="c"># hyperplanes defined by the inequalities</span>
+    <span class="n">dToPlane</span> <span class="o">=</span> <span class="n">distanceToPlane</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="c">#distanceToPlane = abs(A.dot(V.T) - numpy.reshape(b,(numFace,1)))</span>
+    <span class="n">indexList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numVertices</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="n">numVertices</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="c"># print indexList</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numFace</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    <span class="n">fx</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numFace</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numFace</span><span class="p">):</span>
+        <span class="c"># print &quot;face number &quot; +str(i)</span>
+        <span class="c"># building our new triangle/tetrahedron</span>
+        <span class="c"># print distanceToPlane[i]</span>
+        <span class="c"># find points not on the plane, subject to machine precision</span>
+        <span class="c"># notOnPlane = abs(dToPlane[i])&gt;=1e-8</span>
+        <span class="n">onPlane</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dToPlane</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">&lt;=</span><span class="mf">1e-8</span>
+        <span class="c"># print &quot;\n Face number &quot; +str(i)</span>
+        <span class="c"># print notOnPlane</span>
+        <span class="c">#indexNotOnPlane = indexList[notOnPlane==False]</span>
+        <span class="n">indexOnPlane</span> <span class="o">=</span> <span class="n">indexList</span><span class="p">[</span><span class="n">onPlane</span><span class="p">]</span>
+        <span class="c">#print indexList[indexNotOnPlane]</span>
+        <span class="n">newV</span> <span class="o">=</span> <span class="n">V</span><span class="p">[</span><span class="n">indexList</span><span class="p">[</span><span class="n">indexOnPlane</span><span class="p">],:]</span>
+        <span class="n">newV</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">newV</span><span class="p">,</span><span class="n">numpy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x0</span><span class="p">),(</span><span class="mi">1</span><span class="p">,</span><span class="n">numDimension</span><span class="p">)),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c"># newA,newb = verticesToConstraint(newV)</span>
+        <span class="c"># print &quot;Object &quot; +str(i)</span>
+        <span class="c"># print newV</span>
+        <span class="c"># add our new object</span>
+        <span class="c"># polyList.append(copy.deepcopy(PolygonObj(func,newA,newb)))</span>
+
+        <span class="n">polyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">PolygonObj</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="n">newV</span><span class="p">)))</span>
+        <span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+        <span class="n">fx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getFx</span><span class="p">()</span>
+
+    <span class="c">#TODO: add in closest polygon</span>
+    <span class="n">newPolyObj</span> <span class="o">=</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">splitThis</span><span class="p">(</span><span class="n">polyList</span><span class="p">)</span>
+    <span class="n">y</span><span class="p">,</span><span class="n">r</span><span class="p">,</span><span class="n">j</span> <span class="o">=</span> <span class="n">closestVector</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">newPolyObj</span><span class="o">.</span><span class="n">getGrad</span><span class="p">())</span>
+    <span class="n">polyList</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">setDirectionFromParent</span><span class="p">()</span>
+
+    <span class="c"># add in the original and declare it has already been split</span>
+    <span class="n">polyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">newPolyObj</span><span class="p">))</span>
+        
+    <span class="k">return</span> <span class="n">polyList</span>
+
+
+<span class="k">def</span> <span class="nf">divideGivenPolygon</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="n">polyObj</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Divide a polygon object given objective function</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func: callable</span>
+<span class="sd">        objective function</span>
+<span class="sd">    polyObj: :class:`PolygonObj`</span>
+<span class="sd">        the polygon which we want to split</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list:</span>
+<span class="sd">        the set of new polygons as well as the origin</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># TODO: think about the case where we only divide a single</span>
+    <span class="c"># dimension.</span>
+
+    <span class="c"># each polyObj carries it&#39;s own little polygon</span>
+    <span class="c"># defined by the inequalities</span>
+    <span class="n">A</span><span class="p">,</span><span class="n">b</span> <span class="o">=</span> <span class="n">polyObj</span><span class="o">.</span><span class="n">getInequality</span><span class="p">()</span>
+        
+    <span class="n">polyList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+    <span class="c">###</span>
+    <span class="c"># </span>
+    <span class="c"># HERE, we divide the polygon into little triangles</span>
+    <span class="c"># </span>
+    <span class="c">### </span>
+
+    <span class="c"># We obtain our convex hull and the points at the vertices</span>
+    <span class="n">V</span><span class="p">,</span> <span class="n">dualHull</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">constraintToVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c"># and the convex hull in the primal space</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+    <span class="c"># random information</span>
+    <span class="n">numFace</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">numSimplices</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">numDimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+    <span class="n">numVertices</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="c">###</span>
+    <span class="c">#</span>
+    <span class="c"># Find the center simplex</span>
+    <span class="c">#</span>
+    <span class="c">###</span>
+    
+    <span class="c"># we are going to find the distance between the vertices and the</span>
+    <span class="c"># hyperplanes defined by the inequalities</span>
+    <span class="n">dToPlane</span> <span class="o">=</span> <span class="n">distanceToPlane</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="c">#distanceToPlane = abs(A.dot(V.T) - numpy.reshape(b,(numFace,1)))</span>
+    <span class="n">indexList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numVertices</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="n">numVertices</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="c"># holder for the new vertices</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numFace</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numFace</span><span class="p">):</span>
+        <span class="c"># building our new triangle/tetrahedron</span>
+        <span class="c"># find points not on the plane, subject to machine precision</span>
+        <span class="n">onPlane</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dToPlane</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">&lt;=</span><span class="mf">1e-8</span>
+        <span class="n">indexOnPlane</span> <span class="o">=</span> <span class="n">indexList</span><span class="p">[</span><span class="n">onPlane</span><span class="p">]</span>
+        <span class="n">newV</span> <span class="o">=</span> <span class="n">V</span><span class="p">[</span><span class="n">indexOnPlane</span><span class="p">,:]</span>
+        <span class="c"># take the average</span>
+        <span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">newV</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c"># we are going to create our new simplex that sits in the middle</span>
+    <span class="c"># of the original simplex</span>
+    <span class="n">newPolyObj</span> <span class="o">=</span> <span class="n">PolygonObj</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">centerA</span><span class="p">,</span><span class="n">centerB</span> <span class="o">=</span> <span class="n">newPolyObj</span><span class="o">.</span><span class="n">getInequality</span><span class="p">()</span>
+    
+    <span class="c">###</span>
+    <span class="c">#</span>
+    <span class="c"># Find the corner simplex</span>
+    <span class="c">#</span>
+    <span class="c">###</span>
+    
+    <span class="c"># we need to find out the closest plane from the middle simplex to each vertex</span>
+    <span class="c"># and also the planes that connects to the vertex</span>
+    <span class="c">## getting the transpose because we want to go down the list of vertices</span>
+    
+    
+    <span class="n">centerDToPlane</span> <span class="o">=</span> <span class="n">distanceToPlane</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">centerA</span><span class="p">,</span><span class="n">centerB</span><span class="p">)</span>
+    <span class="c"># the number of faces doesn&#39;t change for a n+1-simplex</span>
+    <span class="n">centerX</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numFace</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    <span class="n">verticesList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numFace</span><span class="p">):</span>
+        <span class="c"># building our new triangle/tetrahedron</span>
+        <span class="c"># find points not on the plane, subject to machine precision</span>
+        <span class="n">onPlane</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">centerDToPlane</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">&lt;=</span><span class="mf">1e-8</span>
+        <span class="n">indexOnPlane</span> <span class="o">=</span> <span class="n">indexList</span><span class="p">[</span><span class="n">onPlane</span><span class="p">]</span>
+        <span class="n">newV</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">indexOnPlane</span><span class="p">,:]</span>
+        <span class="c"># take the average</span>
+        <span class="n">centerX</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">newV</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">verticesList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indexOnPlane</span><span class="p">)</span>
+
+    <span class="c"># the distance from the middle of the hyperplane that defines the center </span>
+    <span class="c"># simplex and the hyperplanes.  only used for identifying which point</span>
+    <span class="c"># sits on which plane</span>
+    <span class="n">centerDToCenterPlane</span> <span class="o">=</span> <span class="p">(</span><span class="n">centerA</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">centerX</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="o">-</span> <span class="n">centerB</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="c"># create the set of index for our hyperplanes</span>
+    <span class="n">planeIndexList</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numFace</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="n">numFace</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="c"># holders</span>
+    <span class="n">simplexFromCenter</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numFace</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numVertices</span><span class="p">):</span>
+        <span class="c"># going to find the planes where vertex i sits on</span>
+        <span class="n">planeMeetVertices</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dToPlane</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">&lt;=</span><span class="mf">1e-8</span>
+        <span class="c"># then the index of those planes</span>
+        <span class="n">planesMeetVertex</span> <span class="o">=</span> <span class="n">planeIndexList</span><span class="p">[</span><span class="n">planeMeetVertices</span><span class="p">]</span>
+        <span class="n">Atemp</span> <span class="o">=</span> <span class="n">A</span><span class="p">[</span><span class="n">planesMeetVertex</span><span class="p">,:]</span>
+        <span class="n">btemp</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">planesMeetVertex</span><span class="p">]</span>
+        <span class="c"># then the new plane that completes the convex hull/simplex</span>
+        <span class="c"># centerPlaneIndex = numpy.argmin(dVToS[i])</span>
+        <span class="c"># print &quot;Vertex &quot; +str(i)</span>
+        <span class="c"># print Atemp</span>
+        <span class="c"># print btemp</span>
+        <span class="c"># Atemp = numpy.append(Atemp,numpy.reshape(centerA[centerPlaneIndex],(1,numDimension)),axis=0)</span>
+        <span class="c"># btemp = numpy.append(btemp,centerB[centerPlaneIndex])</span>
+
+        <span class="c"># the set of distance between vertex i and the points lying on the hyperplane</span>
+        <span class="c"># of the center simplex</span>
+        <span class="n">dVToCenterX</span> <span class="o">=</span> <span class="n">V</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">centerX</span>
+        <span class="c"># index with the minimum distance</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dVToCenterX</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+        <span class="c"># index of center simplex that completes the corner simplex</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">centerDToCenterPlane</span><span class="p">[</span><span class="n">index</span><span class="p">]))</span>
+        <span class="c"># print &quot;Location of V[i]&quot;</span>
+        <span class="c"># print V[i]</span>
+        <span class="c"># print &quot;dVToCenterX&quot;</span>
+        <span class="c"># print dVToCenterX</span>
+        <span class="c"># print &quot;Actual distance from vertices to the center simplex mid point&quot;</span>
+        <span class="c"># print numpy.linalg.norm(dVToCenterX,axis=1)</span>
+        <span class="c"># print &quot;index of center simplex that completes the corner simplex&quot;</span>
+        <span class="c"># print index</span>
+        <span class="c"># print &quot;and the location of that is &quot;</span>
+        <span class="c"># print centerX[index]</span>
+        <span class="c"># print &quot;vertices of center simplex&quot;</span>
+        <span class="c"># print X[verticesList[index]]</span>
+
+        <span class="n">XTemp</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="n">verticesList</span><span class="p">[</span><span class="n">index</span><span class="p">]],</span><span class="n">numpy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="n">i</span><span class="p">],(</span><span class="mi">1</span><span class="p">,</span><span class="n">numDimension</span><span class="p">)),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c"># Atemp = numpy.append(Atemp,numpy.reshape(centerA[index],(1,numDimension)),axis=0)</span>
+        <span class="c"># btemp = numpy.append(btemp,centerB[index])</span>
+
+        
+        <span class="c"># print V[i]</span>
+        <span class="c"># print planeMeetVertices</span>
+        <span class="c"># print A</span>
+        <span class="c"># print b</span>
+        <span class="c"># add the object to the list</span>
+        <span class="c"># print centerPlaneIndex</span>
+        <span class="n">polyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PolygonObj</span><span class="p">(</span><span class="n">func</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="n">XTemp</span><span class="p">))</span>
+        <span class="c"># find the location for simplex i</span>
+        <span class="n">simplexFromCenter</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">getLocation</span><span class="p">()</span>
+        
+    <span class="c">###</span>
+    <span class="c">#</span>
+    <span class="c"># Consolidate information</span>
+    <span class="c">#</span>
+    <span class="c">###</span>
+
+    <span class="c"># add in the original and declare it has already been split</span>
+    <span class="c">#originalPolyObj = polyObj.splitThis()</span>
+    <span class="c">#polyList.append(copy.deepcopy(originalPolyObj))</span>
+    <span class="c"># this should be a deepcopy because we remove the original</span>
+    <span class="c"># object later using their hash</span>
+    <span class="c">#TODO: add in closest polygon</span>
+    <span class="c">#polyObj = polyObj.splitThis(polyList[1::])</span>
+    <span class="n">newPolyObj</span> <span class="o">=</span> <span class="n">newPolyObj</span><span class="o">.</span><span class="n">splitThis</span><span class="p">(</span><span class="n">polyList</span><span class="p">)</span>
+    <span class="n">y</span><span class="p">,</span><span class="n">r</span><span class="p">,</span><span class="n">j</span> <span class="o">=</span> <span class="n">closestVector</span><span class="p">(</span><span class="n">simplexFromCenter</span><span class="p">,</span><span class="n">newPolyObj</span><span class="o">.</span><span class="n">getGrad</span><span class="p">())</span>
+    <span class="n">polyList</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">setDirectionFromParent</span><span class="p">()</span>
+    <span class="n">polyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">newPolyObj</span><span class="p">)</span>
+
+    <span class="n">polyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">polyObj</span><span class="o">.</span><span class="n">splitThis</span><span class="p">()))</span>
+
+    <span class="k">return</span> <span class="n">polyList</span>
+
+<span class="k">def</span> <span class="nf">identifyPotentialOptimalPolygonPareto</span><span class="p">(</span><span class="n">polyObjList</span><span class="p">,</span><span class="n">EPSILON</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Divide a polygon object given objective function</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    polyObjList: list</span>
+<span class="sd">        list of :class:`PolygonObj`</span>
+<span class="sd">    EPSILON: numeric, optional</span>
+<span class="sd">        control on how local the search is</span>
+<span class="sd">    includeMin: bool, optional</span>
+<span class="sd">        </span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list:</span>
+<span class="sd">        index of polygons which we want to divide</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># only operate on the unsplit polygon</span>
+    <span class="n">polyList</span> <span class="o">=</span> <span class="n">_findUnsplitPolygon</span><span class="p">(</span><span class="n">polyObjList</span><span class="p">)</span>
+
+    <span class="c"># find our Pareto front</span>
+    <span class="n">listPotentialOptimalIndex</span> <span class="o">=</span> <span class="n">identifyPotentialOptimalObjectPareto</span><span class="p">(</span><span class="n">polyList</span><span class="p">,</span><span class="n">EPSILON</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span><span class="n">uniqueDecimal</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span><span class="n">includeMin</span><span class="o">=</span><span class="n">includeMin</span><span class="p">)</span>
+
+    <span class="c"># need to convert the index back to the original set which</span>
+    <span class="c"># also include polygons that has been split</span>
+    <span class="n">listPotentialOptimalOriginal</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">listPotentialOptimalIndex</span><span class="p">:</span>
+        <span class="n">listPotentialOptimalOriginal</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">polyObjList</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">polyList</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span>
+
+    <span class="k">return</span> <span class="n">listPotentialOptimalOriginal</span>
+
+<span class="k">def</span> <span class="nf">lbubToBox</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert a set of lower and upper bounds vectors to a matrix</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bound vector</span>
+<span class="sd">    ub: array like</span>
+<span class="sd">        upper bound vector</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">        our box constraints</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">lb</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lb</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">ub</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">ub</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ub</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+
+<span class="k">def</span> <span class="nf">addBoxToInequality</span><span class="p">(</span><span class="n">box</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">A</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Add the box constraints to inequalities</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    box: array like</span>
+<span class="sd">        matrix of box constraints</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple: shape(2,)</span>
+<span class="sd">        our new Ax&lt;=b with A our first element and b the second</span>
+<span class="sd">        </span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    :func:`addBoxToInequalityLBUB`</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">b</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">box</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="c"># Stop smoking</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;No Center&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">box</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">box</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">box</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">box</span><span class="p">)</span>
+    
+        <span class="n">p</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">box</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">p</span><span class="p">),</span><span class="o">-</span><span class="n">numpy</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">p</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">box</span><span class="p">[:,</span><span class="mi">1</span><span class="p">],</span><span class="o">-</span><span class="n">box</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="c"># now the inequality constraints</span>
+    <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">A</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+                <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">):</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">b</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+            <span class="c"># don&#39;t have to further check dimension because </span>
+            <span class="c"># it will be checked in cvxopt anyway</span>
+            <span class="k">if</span> <span class="n">G</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">G</span> <span class="o">=</span> <span class="n">A</span>
+                <span class="n">h</span> <span class="o">=</span> <span class="n">b</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># bind</span>
+                <span class="n">G</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">h</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Have A in Ax=b but not b&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span> <span class="c"># A is None</span>
+        <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Have b in Ax=b but not A&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">G</span><span class="p">,</span><span class="n">h</span>
+
+<span class="k">def</span> <span class="nf">addBoxToInequalityLBUB</span><span class="p">(</span><span class="n">lb</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">ub</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">A</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Add the box constraints to inequalities</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bounds</span>
+<span class="sd">    ub: array like</span>
+<span class="sd">        upper bounds</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple: shape(2,)</span>
+<span class="sd">        our new Ax&lt;=b with A our first element and b the second</span>
+<span class="sd">        </span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    :func:`addBoxToInequality`</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">lb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">ub</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">box</span> <span class="o">=</span> <span class="n">lbubToBox</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Require both lb and ub&quot;</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">addBoxToInequality</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_findChebyshevCenter</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c"># return the binding constraints</span>
+    <span class="n">bindingIndex</span><span class="p">,</span><span class="n">dualHull</span><span class="p">,</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span> <span class="o">=</span> <span class="n">bindingConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c"># Chebyshev center</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">variable</span><span class="p">()</span>
+    <span class="n">xc</span> <span class="o">=</span> <span class="n">variable</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+    <span class="n">op</span><span class="p">(</span><span class="o">-</span><span class="n">R</span><span class="p">,</span> <span class="p">[</span> <span class="n">G</span><span class="p">[</span><span class="n">k</span><span class="p">,:]</span><span class="o">*</span><span class="n">xc</span> <span class="o">+</span> <span class="n">R</span><span class="o">*</span><span class="n">blas</span><span class="o">.</span><span class="n">nrm2</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="n">k</span><span class="p">,:])</span> <span class="o">&lt;=</span> <span class="n">h</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="p">]</span> <span class="o">+</span> <span class="p">[</span> <span class="n">R</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="p">)</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">R</span><span class="o">.</span><span class="n">value</span>
+    <span class="n">xc</span> <span class="o">=</span> <span class="n">xc</span><span class="o">.</span><span class="n">value</span>
+
+    <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">xc</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">xc</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="c">## If we want to check and see the difference between the center  </span>
+    <span class="c">## points obtained using a set of binding constraints and a </span>
+    <span class="c">## solution with all the constraints.</span>
+    <span class="c"># print sol[&#39;x&#39;]</span>
+    <span class="c"># G = newG</span>
+    <span class="c"># h = newh</span>
+    <span class="c"># print solvers.cp(F)[&#39;x&#39;]</span>
+    
+<span class="k">def</span> <span class="nf">findAnalyticCenter</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Find the analytic center of a polygon given a set of </span>
+<span class="sd">    inequalities Gx&lt;=h.  Solves the problem</span>
+<span class="sd">    </span>
+<span class="sd">    min_{x} \sum_{i}^{n} -log(h - Gx)_{i}</span>
+<span class="sd">    </span>
+<span class="sd">    subject to the satisfaction of the inequalities</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    G: array like</span>
+<span class="sd">        matrix A in Gx&lt;=h, shape (p,d)</span>
+<span class="sd">    h: array like</span>
+<span class="sd">        vector h in Gx&lt;=h  shape (p,)</span>
+<span class="sd">    full_output: bool, optional</span>
+<span class="sd">        whether the full output is required.  Only the center *x* is return</span>
+<span class="sd">        if False, which is the default.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x: array like</span>
+<span class="sd">        analytic center of the polygon</span>
+<span class="sd">    sol: dict</span>
+<span class="sd">        solution dictionary from cvxopt </span>
+<span class="sd">    G: array like</span>
+<span class="sd">        binding matrix G in Gx&lt;=h</span>
+<span class="sd">    h: array like</span>
+<span class="sd">        binding vector h in G&lt;=h</span>
+<span class="sd">        </span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    :func:`findAnalyticCenter`</span>
+<span class="sd">        </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c"># we use the cvxopt convention here in that </span>
+    <span class="c"># Gx \preceq h is our general linear inequality constraints</span>
+    <span class="c"># where Ax \le b is our linear inequality</span>
+    <span class="c"># and box is our box constraints</span>
+<span class="c">#     if type(G) is numpy.ndarray:</span>
+<span class="c">#         G = matrix(G)</span>
+<span class="c">#     if type(h) is numpy.ndarray:</span>
+<span class="c">#         h = matrix(h)</span>
+<span class="c"># </span>
+<span class="c">#     if G is None or h is None:</span>
+<span class="c">#         raise Exception(&quot;Expecting input for G and h&quot;)</span>
+<span class="c">#     else:</span>
+<span class="c">#         if len(G[:,0])!=len(h):</span>
+<span class="c">#             raise Exception(&quot;Number of rows in G must equal the number of values in h&quot;)</span>
+
+    <span class="c">## note that the new set of G and h are the binding constraints</span>
+    <span class="n">bindingIndex</span><span class="p">,</span><span class="n">dualHull</span><span class="p">,</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span> <span class="o">=</span> <span class="n">bindingConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">True</span><span class="p">)</span>
+
+
+    <span class="c"># define our objective function along with the </span>
+    <span class="c"># gradient and the Hessian</span>
+    <span class="k">def</span> <span class="nf">F</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">h</span><span class="o">-</span><span class="n">G</span><span class="o">*</span><span class="n">x</span>
+        <span class="c"># we are assuming here that the center can sit on an edge</span>
+        <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="bp">None</span> 
+        <span class="c"># pretty standard log barrier </span>
+        <span class="n">f</span> <span class="o">=</span> <span class="o">-</span><span class="nb">sum</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+        <span class="n">Df</span> <span class="o">=</span> <span class="p">(</span><span class="n">y</span><span class="o">**-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">G</span>
+        <span class="k">if</span> <span class="n">z</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="k">return</span> <span class="n">matrix</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">Df</span>
+        <span class="n">H</span> <span class="o">=</span>  <span class="n">G</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">spdiag</span><span class="p">(</span><span class="n">y</span><span class="o">**-</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">G</span>
+        <span class="k">return</span> <span class="n">matrix</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">Df</span><span class="p">,</span> <span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">H</span>
+
+    <span class="c"># then we solve the non-linear program</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c"># print &quot;Find the analytic center&quot;</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">solvers</span><span class="o">.</span><span class="n">cp</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">print</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x0</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">G</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">h</span><span class="p">))</span>
+        <span class="k">print</span> <span class="s">&quot;G&quot;</span>
+        <span class="k">print</span> <span class="n">G</span>
+        <span class="k">print</span> <span class="s">&quot;h&quot;</span>
+        <span class="k">print</span> <span class="n">h</span>
+        <span class="k">print</span> <span class="s">&quot;Distance to face&quot;</span>
+        <span class="k">print</span> <span class="n">h</span> <span class="o">-</span> <span class="n">G</span><span class="o">*</span><span class="n">x0</span>
+        <span class="k">print</span> <span class="s">&quot;starting location&quot;</span>        
+        <span class="k">print</span> <span class="n">x0</span>
+        <span class="n">h1</span> <span class="o">=</span> <span class="n">h</span>
+        <span class="n">lapack</span><span class="o">.</span><span class="n">gels</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h1</span><span class="p">)</span>
+        <span class="k">print</span> <span class="s">&quot;LS version&quot;</span>
+        <span class="k">print</span> <span class="n">h1</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])]</span>
+        <span class="k">print</span> <span class="s">&quot;Re-solve the problem&quot;</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">solvers</span><span class="o">.</span><span class="n">conelp</span><span class="p">(</span><span class="n">matrix</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]))),</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">print</span> <span class="n">sol</span>
+        <span class="k">print</span> <span class="n">h</span> <span class="o">-</span> <span class="n">G</span><span class="o">*</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">]</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">solvers</span><span class="o">.</span><span class="n">conelp</span><span class="p">(</span><span class="n">matrix</span><span class="p">(</span><span class="o">-</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]))),</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">)</span>
+        <span class="k">print</span> <span class="n">sol</span>
+        <span class="k">print</span> <span class="n">h</span> <span class="o">-</span> <span class="n">G</span><span class="o">*</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;FUCK!&quot;</span><span class="p">)</span>
+
+   
+
+    <span class="c"># this is rather confusing because part of the outputs are</span>
+    <span class="c"># in cvxopt matrix format while the first is in numpy.ndarray</span>
+    <span class="c"># also note that G and h are the binding constraints</span>
+    <span class="c"># rather than the full set of inequalities</span>
+    <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">sol</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">findAnalyticCenterBox</span><span class="p">(</span><span class="n">box</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">A</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Find the analytic center of a polygon given lower and upper bounds</span>
+<span class="sd">    in matrix form and inequalities Ax&lt;=b</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    box: array like</span>
+<span class="sd">        lower bounds and upper bounds of dimension (p,2) where</span>
+<span class="sd">        p is the number of variables</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b, shape (p,d)</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b  shape (p,)</span>
+<span class="sd">    full_output: bool</span>
+<span class="sd">        whether the full output is required</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x: array like</span>
+<span class="sd">        analytic center of the polygon</span>
+<span class="sd">        </span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    :func:`findAnalyticCenter`</span>
+<span class="sd">        </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c"># we use the cvxopt convention here in that </span>
+    <span class="c"># Gx \preceq h is our general linear inequality constraints</span>
+    <span class="c"># where Ax \le b is our linear inequality</span>
+    <span class="c"># and box is our box constraints</span>
+
+    <span class="c"># first, we have to convert box to inequality</span>
+    <span class="n">G</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">addBoxToInequality</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">full_output</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">findAnalyticCenterLBUB</span><span class="p">(</span><span class="n">lb</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">ub</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">A</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Find the analytic center of a polygon given lb_{i} &lt;= x_{i} &lt;= ub_{i}</span>
+<span class="sd">    and inequalities Ax&lt;=b</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lb: array like</span>
+<span class="sd">        lower bounds</span>
+<span class="sd">    ub: array like</span>
+<span class="sd">        upper bounds</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b, shape (p,d)</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b  shape (p,)</span>
+<span class="sd">    full_output: bool</span>
+<span class="sd">        whether the full output is required</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x: array like</span>
+<span class="sd">        analytic center of the polygon</span>
+<span class="sd">        </span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    :func:`findAnalyticCenter`</span>
+<span class="sd">        </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">box</span> <span class="o">=</span> <span class="n">lbubToBox</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">full_output</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">distanceToPlane</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Find out the distance between all the points and hyperplane, i.e.</span>
+<span class="sd">    the set of inequalities defined by Ax&lt;=b</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    X: array like</span>
+<span class="sd">        input locations, shape (v,d)</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b, shape (p,d)</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b  shape (p,)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    array like</span>
+<span class="sd">        distance to the hyperplanes, shape (p, v)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">numFace</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">distanceToPlane</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="o">-</span> <span class="n">numpy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">b</span><span class="p">,(</span><span class="n">numFace</span><span class="p">,</span><span class="mi">1</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">distanceToPlane</span>
+
+<span class="k">def</span> <span class="nf">feasiblePoint</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">allowQuasiBoundary</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Determine where x is a feasible point given the set</span>
+<span class="sd">    of inequalities Ax&lt;=b</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x: array like</span>
+<span class="sd">        input location</span>
+<span class="sd">    A: array like</span>
+<span class="sd">        matrix A in Ax&lt;=b</span>
+<span class="sd">    b: array like</span>
+<span class="sd">        vector b in Ax&lt;=b</span>
+<span class="sd">    allowQuasiBoundary: bool</span>
+<span class="sd">        whether we allow points to sit on the hyperplanes.  This </span>
+<span class="sd">        also acts as a mechanism to accommodate machine precision</span>
+<span class="sd">        problem</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True is x is a feasbiel point</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># type checking</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">A</span><span class="p">)</span> <span class="ow">is</span> <span class="n">cvxopt</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">matrix</span><span class="p">:</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="ow">is</span> <span class="n">cvxopt</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">matrix</span><span class="p">:</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">is</span> <span class="n">cvxopt</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">matrix</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c"># can our point sit on the hyperplane?</span>
+    <span class="c"># false means no</span>
+    <span class="c"># also better as it prevents stupid stuff happening simply</span>
+    <span class="c"># due to numerical error</span>
+    <span class="k">if</span> <span class="n">allowQuasiBoundary</span><span class="o">==</span><span class="bp">False</span><span class="p">:</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+    <span class="c"># an infeasible point means that one of the inequality is violated</span>
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">-</span><span class="n">b</span><span class="o">&gt;=</span><span class="mi">0</span><span class="p">)</span><span class="o">==</span><span class="bp">False</span>
+
+<span class="k">def</span> <span class="nf">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">allowQuasiBoundary</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">isMin</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+
+    <span class="c"># equal weight for each dimension</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+    <span class="k">if</span> <span class="n">isMin</span><span class="p">:</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="o">-</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+    <span class="c"># change the type to make it suitable for cvxopt</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">A</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+    <span class="c"># aka do we allow for some numerical error</span>
+    <span class="k">if</span> <span class="n">allowQuasiBoundary</span><span class="o">==</span><span class="bp">False</span><span class="p">:</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+    <span class="c"># find our feasible point</span>
+    <span class="n">b1</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="c"># Note that lapack.gels expects A to be full rank</span>
+    <span class="n">lapack</span><span class="o">.</span><span class="n">gels</span><span class="p">(</span><span class="o">+</span><span class="n">A</span><span class="p">,</span><span class="n">b1</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">b1</span><span class="p">[:</span><span class="n">p</span><span class="p">]</span>
+    <span class="c"># test feasibility</span>
+    <span class="k">if</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">),</span><span class="n">allowQuasiBoundary</span><span class="p">):</span>
+        <span class="c"># print &quot;YES!, our shape is convex&quot;</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># print &quot;Solving lp to get starting value&quot;</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">solvers</span><span class="o">.</span><span class="n">conelp</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+        <span class="c"># check if see if the solution exist</span>
+        <span class="k">if</span> <span class="n">sol</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span><span class="o">==</span><span class="s">&quot;optimal&quot;</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">elif</span> <span class="n">sol</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span><span class="o">==</span><span class="s">&quot;primal infeasible&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;The interior defined by the set of inequalities is empty&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">sol</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span><span class="o">==</span><span class="s">&quot;dual infeasible&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;The interior is unbounded&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">]),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">),</span><span class="n">allowQuasiBoundary</span><span class="p">):</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># print A</span>
+                <span class="c"># print b</span>
+                <span class="c"># print sol</span>
+                <span class="c"># print A * sol[&#39;x&#39;] - b</span>
+                <span class="c"># print &quot;Solution?&quot;</span>
+                <span class="c"># print sol[&#39;x&#39;]</span>
+                <span class="c"># b1 = b</span>
+                <span class="c"># lapack.gels(A,b)</span>
+                <span class="c"># print &quot;LS Solution&quot;</span>
+                <span class="c"># print b[:p]</span>
+                <span class="c"># print A * b[:p] - b1</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Something went wrong, I have no idea&quot;</span><span class="p">)</span>
+    
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">sol</span><span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">bindingConstraint</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c"># checking thata input is sane</span>
+    <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">b</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Expecting input for both A and b&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span><span class="o">!=</span><span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Number of rows in A must equal the number of values in b&quot;</span><span class="p">)</span>
+
+    <span class="c"># first, we find a feasible value</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">A</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x0</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">x01</span> <span class="o">=</span> <span class="n">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">isMin</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">x02</span> <span class="o">=</span> <span class="n">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">isMin</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="c"># we are going to try and see whether the average of the </span>
+        <span class="c"># two point is valid</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="p">(</span><span class="n">x01</span> <span class="o">+</span> <span class="n">x02</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+            <span class="c"># valid, happy and this must be a better guess!</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># holy cow, we may have a problem</span>
+            <span class="k">raise</span> <span class="ne">Warning</span><span class="p">(</span><span class="s">&quot;May not be a convex hull&quot;</span><span class="p">)</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x01</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># first test on the dimension</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span> <span class="o">!=</span> <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;The center should have the same dimension as the inequality&quot;</span><span class="p">)</span>
+        <span class="c"># second test on feasibility</span>
+        <span class="k">if</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Warning</span><span class="p">(</span><span class="s">&quot;Input feasible point does not belong to the interior of the feasible set&quot;</span><span class="p">)</span>
+            <span class="c"># input not valid, we find a new point</span>
+            <span class="n">x01</span> <span class="o">=</span> <span class="n">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">isMin</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">x02</span> <span class="o">=</span> <span class="n">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">isMin</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="p">(</span><span class="n">x01</span> <span class="o">+</span> <span class="n">x02</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">feasiblePoint</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x01</span><span class="p">)</span>
+
+    <span class="c"># find our dual points</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">constraintToDualVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="p">)</span>
+    
+    <span class="c"># construct our convex hull</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">D</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c"># give them the actual convex hull</span>
+    <span class="c"># and also the set of inequalities, which we will want if </span>
+    <span class="c"># we have converted the box constraints to inequality</span>
+    <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hull</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">hull</span><span class="p">,</span> <span class="n">A</span><span class="p">[</span><span class="n">hull</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),:],</span> <span class="n">b</span><span class="p">[</span><span class="n">hull</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()],</span> <span class="n">x0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># the index of the binding constraints</span>
+        <span class="k">return</span> <span class="n">hull</span><span class="o">.</span><span class="n">vertices</span>
+
+<span class="k">def</span> <span class="nf">bindingConstraintBox</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="n">G</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">addBoxToInequality</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bindingConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="n">full_output</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">bindingConstraintLBUB</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="n">G</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">addBoxToInequality</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bindingConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="n">full_output</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">redundantConstraint</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c"># Total</span>
+    <span class="n">numConstraints</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="c"># Total = redundant + binding</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="n">bindingConstraint</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="n">full_output</span><span class="p">)</span>
+    <span class="c"># the full set of index</span>
+    <span class="n">totalIndex</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numConstraints</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="n">numConstraints</span><span class="p">)</span>
+    <span class="c"># delete the binding ones</span>
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">totalIndex</span><span class="p">,</span><span class="n">index</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">redundantConstraintBox</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="n">G</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">addBoxToInequality</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">redundantConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">redundantConstraintLBUB</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="n">G</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">addBoxToInequalityLBUB</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">redundantConstraint</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">h</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">constraintToDualVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">x0</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">feasibleStartingValue</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span> <span class="ow">is</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">A</span> <span class="o">*</span> <span class="n">x0</span>
+    <span class="c"># the dual polytope vertices</span>
+    <span class="c"># div is the elementwise operation aka Hadamard product </span>
+    <span class="c"># in terms of division</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">div</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">d</span><span class="p">[:,</span><span class="n">matrix</span><span class="p">(</span><span class="mi">0</span><span class="p">,(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">x0</span><span class="p">)))])</span>
+    <span class="k">return</span> <span class="n">D</span>
+
+<span class="k">def</span> <span class="nf">constraintToVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="c"># find the center</span>
+    <span class="k">if</span> <span class="n">x0</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">x0</span><span class="p">,</span> <span class="n">sol</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">findAnalyticCenter</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># convert it to cvxopt.base.matrix</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+    
+    <span class="c"># find the dual points</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">constraintToDualVertices</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">x0</span><span class="p">)</span>
+    
+    <span class="c"># construction of our convex hull</span>
+    <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">D</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c"># information (duh!)</span>
+    <span class="n">numSimplex</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">numDimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">D</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+    <span class="c"># holder for the vertices </span>
+    <span class="n">G</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numSimplex</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    
+    <span class="c"># find out the intersection between the simplices</span>
+    <span class="c"># print &quot;total number of simplices = &quot; +str(numSimplex)</span>
+    <span class="n">totalRow</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numSimplex</span><span class="p">):</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">D</span><span class="p">[</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),:]</span>
+        <span class="c">#G[i,:],e,rank,s = scipy.linalg.lstsq(F,numpy.ones(len(F[:,0])))</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,(</span><span class="nb">len</span><span class="p">(</span><span class="n">F</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]),</span><span class="mi">1</span><span class="p">))</span>
+        <span class="c"># solve the least squares problem</span>
+        <span class="n">beta</span><span class="p">,</span><span class="n">e</span><span class="p">,</span><span class="n">rank</span><span class="p">,</span><span class="n">s</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">F</span><span class="p">),</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>        
+        <span class="k">if</span> <span class="n">rank</span><span class="o">==</span><span class="n">numDimension</span><span class="p">:</span>
+            <span class="c"># only add row if the previous linear system is of full rank</span>
+            <span class="n">G</span><span class="p">[</span><span class="n">i</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">beta</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">totalRow</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># try:</span>
+        <span class="c">#     lapack.gels(+F,y)</span>
+        <span class="c"># except:</span>
+        <span class="c">#     print &quot;Error&quot;</span>
+        <span class="c">#     print numpy.array(F).shape</span>
+        <span class="c">#     #print y</span>
+        <span class="c">#     print numpy.linalg.matrix_rank(numpy.array(F))</span>
+        <span class="c">#     beta,e,rank,s = numpy.linalg.lstsq(numpy.array(F),numpy.array(y))</span>
+        <span class="c">#     print &quot;Solve via LS&quot;</span>
+        <span class="c">#     print beta</span>
+        <span class="c">#     print rank</span>
+        <span class="c">#     print s</span>
+        <span class="c">#     print &quot;And the rank of D&quot;</span>
+        <span class="c">#     print numpy.linalg.matrix_rank(numpy.array(D))</span>
+        <span class="c">#     #raise Exception(&quot;WTF&quot;)</span>
+        <span class="c"># G[i,:] = numpy.array(y[0:numDimension]).flatten()</span>
+
+    <span class="n">G</span> <span class="o">=</span> <span class="n">G</span><span class="p">[:</span><span class="n">totalRow</span><span class="p">,:]</span>
+
+    <span class="c"># center them to the original coordinate</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">G</span> <span class="o">+</span> <span class="n">x0</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="k">if</span> <span class="n">full_output</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">V</span><span class="p">,</span> <span class="n">hull</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">x0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">V</span>
+
+<span class="k">def</span> <span class="nf">verticesToConstraint</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="n">full_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+
+    <span class="c"># Note that we are operating in numpy.ndarray format</span>
+    <span class="c"># for some part while doing the rest in cvxopt.base.matrix</span>
+    <span class="c"># rather different to other functions because they all </span>
+    <span class="c"># mainly operate in cvxopt.base.matrix</span>
+
+    <span class="c"># type checking</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">V</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="ow">is</span> <span class="n">cvxopt</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">matrix</span><span class="p">:</span>
+            <span class="n">V</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Input type not recognized&quot;</span><span class="p">)</span>
+
+    <span class="c"># construct the convex hull</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">hull</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">ConvexHull</span><span class="p">(</span><span class="n">V</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Warning</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Caught a warning&quot;</span><span class="p">)</span>
+    <span class="c"># information</span>
+    <span class="n">numSimplex</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">numDimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="mi">0</span><span class="p">,:])</span>
+
+    <span class="c"># centering, we find the column mean</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="n">hull</span><span class="o">.</span><span class="n">vertices</span><span class="p">,:],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c"># actual centering</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">V</span> <span class="o">-</span> <span class="n">c</span>
+    <span class="c"># holder</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">numSimplex</span><span class="p">,</span><span class="n">numDimension</span><span class="p">))</span>
+    <span class="n">totalRow</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c"># going through the set of simplices</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">numSimplex</span><span class="p">):</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">V</span><span class="p">[</span><span class="n">hull</span><span class="o">.</span><span class="n">simplices</span><span class="p">[</span><span class="n">i</span><span class="p">],:]</span>
+        <span class="c">#A[i,:],e,rank,s = scipy.linalg.lstsq(F,numpy.ones(len(F[:,0])))</span>
+        <span class="c">#beta,e,rank,s = scipy.linalg.lstsq(numpy.array(F),numpy.array(y))        </span>
+        <span class="n">beta</span><span class="p">,</span><span class="n">e</span><span class="p">,</span><span class="n">rank</span><span class="p">,</span><span class="n">s</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">F</span><span class="p">,</span><span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">F</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])))</span>
+        <span class="k">if</span> <span class="n">rank</span><span class="o">==</span><span class="n">numDimension</span><span class="p">:</span>
+            <span class="c"># only add row if the previous linear system is of full rank</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">beta</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">totalRow</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">A</span> <span class="o">=</span> <span class="n">A</span><span class="p">[:</span><span class="n">totalRow</span><span class="p">,:]</span>
+    <span class="c">#b = numpy.ones(numSimplex)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">totalRow</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">+=</span> <span class="n">A</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">A</span><span class="p">,</span><span class="n">b</span>
+
+<span class="k">def</span> <span class="nf">extractAbVFromHull</span><span class="p">(</span><span class="n">hull</span><span class="p">):</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">hull</span><span class="o">.</span><span class="n">equations</span><span class="p">[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="o">-</span><span class="n">hull</span><span class="o">.</span><span class="n">equations</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">hull</span><span class="o">.</span><span class="n">points</span>
+    <span class="k">return</span> <span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">V</span>
+
+<span class="k">def</span> <span class="nf">_findUnsplitPolygon</span><span class="p">(</span><span class="n">polyList</span><span class="p">):</span>
+    
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">polyList</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="c"># there is nothing to do here</span>
+        <span class="k">return</span> <span class="n">polyList</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># make our new list</span>
+        <span class="n">newPolyList</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">polyList</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">hasSplit</span><span class="p">()</span><span class="o">==</span><span class="bp">False</span><span class="p">:</span>
+                <span class="c"># not a copy because we want the same reference</span>
+                <span class="c"># to the objects</span>
+                <span class="n">newPolyList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">newPolyList</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

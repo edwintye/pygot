@@ -1,0 +1,751 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>direct &mdash; pygot 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pygot 0.1.0 documentation" href="../index.html" />
+    <link rel="up" title="Code documentations" href="mod.html" />
+    <link rel="next" title="gradient" href="gradient.html" />
+    <link rel="prev" title="Code documentations" href="mod.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="gradient.html" title="gradient"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="mod.html" title="Code documentations"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">pygot 0.1.0 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="mod.html" accesskey="U">Code documentations</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="direct">
+<h1>direct<a class="headerlink" href="#direct" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt>
+<em class="property">class </em><code class="descclassname">pygot.direct.directAlg.</code><code class="descname">direct</code><span class="sig-paren">(</span><em>func</em>, <em>lb</em>, <em>ub</em>, <em>A=None</em>, <em>b=None</em>, <em>conditionType=None</em>, <em>targetMin=0.0</em>, <em>EPSILON=0.0001</em>, <em>TOLERENCE=0.0001</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#direct"><span class="viewcode-link">[source]</span></a></dt>
+<dd><blockquote>
+<div>DIRECT object</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>func: callable</strong></p>
+<blockquote>
+<div><blockquote>
+<div><p>objective function</p>
+</div></blockquote>
+<dl class="docutils">
+<dt>lb: array like</dt>
+<dd><p class="first last">lower bounds for the parameters</p>
+</dd>
+<dt>ub: array like</dt>
+<dd><p class="first last">upper bounds for the parameters</p>
+</dd>
+<dt>A: array like, optional</dt>
+<dd><p class="first last">matrix of A in Ax&lt;=b</p>
+</dd>
+<dt>b: array like, optional</dt>
+<dd><p class="first last">vector of b in Ax&lt;=b</p>
+</dd>
+<dt>conditionType: enum, optional</dt>
+<dd><p class="first last">of class <code class="xref py py-class docutils literal"><span class="pre">IdConditionType</span></code>.  Defaults to Pareto like condition
+to select the next set of boxes</p>
+</dd>
+<dt>targetMin: float, optional</dt>
+<dd><p class="first last">the target (best possible) minimum, i.e. 0 for a square/absolute loss</p>
+</dd>
+<dt>EPSILON: float, optional</dt>
+<dd><p class="first last">parameter to determine how local the search it</p>
+</dd>
+<dt>TOLERENCE: float, optional</dt>
+<dd><p class="first last">tolerence for</p>
+</dd>
+</dl>
+</div></blockquote>
+<p class="last"><strong>arepsilon-optimal condition</strong></p>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt>
+<code class="descname">divide</code><span class="sig-paren">(</span><em>iteration=50</em>, <em>numBox=1000</em>, <em>scaleOutput=False</em>, <em>full_output=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#direct.divide"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Dividing up the parameter space with respect to the type of bounds</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>iteration: int, optional</strong></p>
+<blockquote>
+<div><p>maximum number of iterations allowed. Defaults to 50</p>
+</div></blockquote>
+<p><strong>numBox: int, optional</strong></p>
+<blockquote>
+<div><p>maximum number of boxes allowed. Defaults to 1000</p>
+</div></blockquote>
+<p><strong>scaleOutput: bool, optional</strong></p>
+<blockquote>
+<div><p>the rectangles will be scaled to between bounds 0 and 1 if True.  
+Note that we scale only when box constraints are present</p>
+</div></blockquote>
+<p><strong>full_output: bool, optional</strong></p>
+<blockquote>
+<div><p>if extra information is required</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">objList: list</p>
+<blockquote>
+<div><p>list of the objects after dividing</p>
+</div></blockquote>
+<p><strong>infodict</strong> : dict, only returned if full_output == True</p>
+<blockquote class="last">
+<div><p>Dictionary containing additional output information</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="13%" />
+<col width="87%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">key</th>
+<th class="head">meaning</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>&#8216;message&#8217;</td>
+<td>reason for stopping</td>
+</tr>
+<tr class="row-odd"><td>&#8216;fx&#8217;</td>
+<td>progress of the objective value</td>
+</tr>
+<tr class="row-even"><td>&#8216;iter&#8217;</td>
+<td>number of iterations taken</td>
+</tr>
+<tr class="row-odd"><td>&#8216;scale&#8217;</td>
+<td>if the bounds on the output has been scaled</td>
+</tr>
+<tr class="row-even"><td>&#8216;newBox&#8217;</td>
+<td>number of new box in each iteration</td>
+</tr>
+<tr class="row-odd"><td>&#8216;numBox&#8217;</td>
+<td>final number of box</td>
+</tr>
+<tr class="row-even"><td>&#8216;bi&#8217;</td>
+<td>index of the box with the smallest objective value</td>
+</tr>
+<tr class="row-odd"><td>&#8216;x&#8217;</td>
+<td>the set of parameters with the smallest objective value</td>
+</tr>
+<tr class="row-even"><td>&#8216;mt&#8217;</td>
+<td>Different type of moves.
+0 = Pareto.
+1 = 0 + current object with lowest objective value.
+2 = 0 + obj with center in the same direct as the gradient
+from previous object with lowest objective value.
+3 = 1 + 2</td>
+</tr>
+</tbody>
+</table>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">initialDivide</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#direct.initialDivide"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>The first divide from the origin</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">list:</p>
+<blockquote class="last">
+<div><p>a list of objects, either of type <code class="xref py py-class docutils literal"><span class="pre">PolygonObj</span></code> or 
+<code class="xref py py-class docutils literal"><span class="pre">RectangleObj</span></code> depending on what type of equalities
+were used</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">initialDividePoly</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#direct.initialDividePoly"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>The first divide from the origin under linear equalities.  This performs
+a triangulation on the polygon.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">list:</p>
+<blockquote class="last">
+<div><p>a list of objects, of type <code class="xref py py-class docutils literal"><span class="pre">PolygonObj</span></code></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">initialDivideRect</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#direct.initialDivideRect"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>The first divide from the origin for box constraints</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">list:</p>
+<blockquote class="last">
+<div><p>a list of objects, of type <code class="xref py py-class docutils literal"><span class="pre">RectangleObj</span></code></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pygot.direct.directAlg.</code><code class="descname">directOptim</code><span class="sig-paren">(</span><em>func</em>, <em>lb</em>, <em>ub</em>, <em>iteration=50</em>, <em>numBox=200</em>, <em>conditionType=None</em>, <em>targetMin=0.0</em>, <em>EPSILON=0.0001</em>, <em>TOLERENCE=0.0001</em>, <em>scaleOutput=False</em>, <em>full_output=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directAlg.html#directOptim"><span class="viewcode-link">[source]</span></a></dt>
+<dd><blockquote>
+<div>DIRECT algorithm.</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>func: callable</strong></p>
+<blockquote>
+<div><blockquote>
+<div><p>Cost function</p>
+</div></blockquote>
+<dl class="docutils">
+<dt>lb: array like</dt>
+<dd><p class="first last">lower bounds of the parameters space</p>
+</dd>
+<dt>ub: callable</dt>
+<dd><p class="first last">upper bounds of the parameters space</p>
+</dd>
+<dt>iteration: int</dt>
+<dd><p class="first last">maximum number of iterations allowed</p>
+</dd>
+<dt>numBox: int</dt>
+<dd><p class="first last">maximum number of boxes allowed</p>
+</dd>
+<dt>strongCondition: bool</dt>
+<dd><p class="first last">if the box selection criteria should be strong</p>
+</dd>
+<dt>targetMin: float</dt>
+<dd><p class="first last">the target (best possible) minimum, i.e. 0 for
+a square/absolute loss</p>
+</dd>
+<dt>EPSILON: float</dt>
+<dd><p class="first last">parameter to determine how local the search it</p>
+</dd>
+<dt>TOLERENCE: float</dt>
+<dd><p class="first last">tolerence for :math:<a href="#id1"><span class="problematic" id="id2">`</span></a></p>
+</dd>
+</dl>
+</div></blockquote>
+<p><strong>arepsilon`-optimal condition</strong></p>
+<blockquote>
+<div><dl class="docutils">
+<dt>scaleOutput: bool</dt>
+<dd><p class="first last">the rectangles will be scaled to between bounds
+0 and 1 if True</p>
+</dd>
+<dt>full_output: bool</dt>
+<dd><p class="first last">if extra information is required</p>
+</dd>
+</dl>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">rectList: list</p>
+<blockquote class="last">
+<div><blockquote>
+<div><p>list of the rectangles after divide</p>
+</div></blockquote>
+<dl class="docutils">
+<dt>infodict <span class="classifier-delimiter">:</span> <span class="classifier">dict, only returned if full_output == True</span></dt>
+<dd><p class="first">Dictionary containing additional output information</p>
+<table border="1" class="last docutils">
+<colgroup>
+<col width="16%" />
+<col width="84%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">key</th>
+<th class="head">meaning</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>&#8216;message&#8217;</td>
+<td>reason for stopping</td>
+</tr>
+<tr class="row-odd"><td>&#8216;iter&#8217;</td>
+<td>number of iterations taken</td>
+</tr>
+<tr class="row-even"><td>&#8216;scale&#8217;</td>
+<td>if the bounds on the output has been scaled</td>
+</tr>
+<tr class="row-odd"><td>&#8216;numBox&#8217;</td>
+<td>final number of box</td>
+</tr>
+<tr class="row-even"><td>&#8216;mbi&#8217;</td>
+<td>index of the box with the smallest objective
+value</td>
+</tr>
+</tbody>
+</table>
+</dd>
+</dl>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt>
+<em class="property">class </em><code class="descclassname">pygot.direct.directUtil.</code><code class="descname">IdConditionType</code><a class="reference internal" href="../_modules/pygot/direct/directUtil.html#IdConditionType"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>This is an Enum describing the different conditions allowed when identifying
+the rectangles with potential.</p>
+<p>The following four types of transitions are available.</p>
+<p>Pareto = boxes that define the Pareto front of f(x) and size of box</p>
+<p>Strong = Strong condition using the estimated Lipschitz constant</p>
+<p>Soft = Soft condition using the estimated Lipschitz constant</p>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pygot.direct.directUtil.</code><code class="descname">plotDirectBox</code><span class="sig-paren">(</span><em>rectList</em>, <em>lb</em>, <em>ub</em>, <em>scaleOutput=False</em>, <em>paretoIndex=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directUtil.html#plotDirectBox"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Plot the boxes return by the DIRECT algorithm given a two dimensional problem.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>rectList: list</strong></p>
+<blockquote>
+<div><p>list of rectangles</p>
+</div></blockquote>
+<p><strong>lb: array like</strong></p>
+<blockquote>
+<div><p>lower bounds</p>
+</div></blockquote>
+<p><strong>ub: array like</strong></p>
+<blockquote>
+<div><p>upper bounds</p>
+</div></blockquote>
+<p><strong>scaleOutput: bool</strong></p>
+<blockquote class="last">
+<div><p>True if the input boxes have been scaled to 0,1</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pygot.direct.directUtil.</code><code class="descname">plotDirectPolygon</code><span class="sig-paren">(</span><em>polyList</em>, <em>paretoIndex=None</em>, <em>lb=None</em>, <em>ub=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directUtil.html#plotDirectPolygon"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Plot the boxes return by the DIRECT algorithm given a two dimensional problem.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>polyList: list</strong></p>
+<blockquote class="last">
+<div><p>list of polygon</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pygot.direct.directUtil.</code><code class="descname">plotParetoFrontRect</code><span class="sig-paren">(</span><em>rectList</em>, <em>paretoIndex=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directUtil.html#plotParetoFrontRect"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Plot the Pareto front formed by the input boxes</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>rectList: list</strong></p>
+<blockquote class="last">
+<div><p>list of rectangles</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pygot.direct.directUtil.</code><code class="descname">plotParetoFrontPoly</code><span class="sig-paren">(</span><em>polyList</em>, <em>paretoIndex=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/directUtil.html#plotParetoFrontPoly"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Plot the Pareto front formed by the input boxes</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>rectList: list</strong></p>
+<blockquote class="last">
+<div><p>list of rectangles</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt>
+<em class="property">class </em><code class="descclassname">pygot.direct.polyOperation.</code><code class="descname">PolygonObj</code><span class="sig-paren">(</span><em>func</em>, <em>A</em>, <em>b</em>, <em>hullorV=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Polygon object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>func: callable</strong></p>
+<blockquote>
+<div><p>objective function</p>
+</div></blockquote>
+<p><strong>A: array like, optional</strong></p>
+<blockquote>
+<div><p>matrix of A in Ax&lt;=b</p>
+</div></blockquote>
+<p><strong>b: array like, optional</strong></p>
+<blockquote>
+<div><p>vector of b in Ax&lt;=b</p>
+</div></blockquote>
+<p><strong>hullorV: :class:`scipy.spatial.ConvexHull` or :class:`numpy.ndarray`, optional</strong></p>
+<blockquote class="last">
+<div><p>Either a convex hull or the vertices that define our convex hull.  If this
+is not None, then information here has a higher priority than the linear 
+inequalities</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt>
+<code class="descname">getDistanceToSimplices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getDistanceToSimplices"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the set of distances from center to the simplices</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getDistanceToVertices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getDistanceToVertices"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the set of distances from center to vertices</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getFx</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getFx"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the objective value evaluated at the center of the polygon</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">float</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getGrad</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getGrad"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Return the simplex gradient obtained given the child (after
+the split)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getInequality</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getInequality"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the set of inequalities</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A: <a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></p>
+<blockquote>
+<div><p>matrix A in Ax&lt;=b</p>
+</div></blockquote>
+<p>b: <a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></p>
+<blockquote class="last">
+<div><p>vector b in Ax&lt;=b</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getLocation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getLocation"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the center of the polygon</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getMaxDistanceToSimplices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getMaxDistanceToSimplices"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the maximum distance from the center to the simplicies</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getMaxDistanceToVertices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getMaxDistanceToVertices"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the maximum distance from the center to the vertices</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getMeasure</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getMeasure"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the measure of the polygon in terms of size</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">float</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">getVertices</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.getVertices"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Returns the set of vertices</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><a class="reference external" href="http://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.9)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">hasSplit</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.hasSplit"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>If this polygon has been split already, i.e. if this is 
+a parent or a child</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">isDirectionFromParent</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.isDirectionFromParent"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Return the information from <code class="xref py py-func docutils literal"><span class="pre">setDirectionFromParent()</span></code></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">setDirectionFromParent</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.setDirectionFromParent"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Denote this polygon as a child which it&#8217;s center to the parent&#8217;s 
+center forms the smallest angle (which is guarantee to be acute)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">self</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">splitThis</code><span class="sig-paren">(</span><em>childObjList=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pygot/direct/polyOperation.html#PolygonObj.splitThis"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Denote this polygon has splited.  Also find the gradient if it
+exist</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>childObjList: list, optional</strong></p>
+<blockquote>
+<div><p>list of <code class="xref py py-class docutils literal"><span class="pre">PolygonObj</span></code> who are the child of this polygon</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">self</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="mod.html"
+                        title="previous chapter">Code documentations</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="gradient.html"
+                        title="next chapter">gradient</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/modules/direct.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Edwin Tye.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.2</a>
+      
+      |
+      <a href="../_sources/modules/direct.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+
+    
+  </body>
+</html>
