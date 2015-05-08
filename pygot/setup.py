@@ -9,6 +9,7 @@ def configuration(parent_package='',top_path=None):
     config = Configuration('pygot',parent_package,top_path)
     config.add_subpackage('direct')
     config.add_subpackage('gradient')
+    config.add_subpackage('gp')    
 
     if sys.version_info[0] < 3:
         config.add_subpackage('weave')
