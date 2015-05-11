@@ -10,16 +10,16 @@ def readme():
     with open('README.rst') as f:
         return f.read()
 
-setup(name='pygot',
+setup(name='pygotools',
       version='0.1.0',
       description='Global Optimization Toolbox',
       long_description=readme(),
       author="Edwin Tye",
       author_email="Edwin.Tye@phe.gov.uk",
       packages=[
-                'pygot',
-                'pygot.direct',
-                'pygot.gradient'
+                'pygotools',
+                'pygotools.direct',
+                'pygotools.gradient'
                 ],
       license='LICENCE.txt',
       install_requires=[
