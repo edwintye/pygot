@@ -83,6 +83,7 @@ class GP(object):
         return -g
 
     def hessian(self, theta):
+        # TODO: check the correctness of this
         beta, phi, sigma2, tau2 = _unrollParam(theta, self._numBeta)
 
         G, H, quadForm, invH, DG, dPhi, dSigma, dTau = _getParamDerivativeInfo(self._y, self._x1,
@@ -189,7 +190,7 @@ class GP(object):
         muA, sigma2A, lambdaA = _conditionalMVN(X, mu, H, A, Ac)
         lambdaA = lambdaA.reshape(len(lambdaA),1)
 
-        r = self._s - s0
+        r = s0 - self._s
         F = numpy.array(range(len(r)))
         normR = numpy.linalg.norm(r,axis=1)
         setIndex = F[normR!=0]
@@ -200,12 +201,77 @@ class GP(object):
         gammaNormalize = (gamma * normalize).reshape(len(gamma),1);
 
         if len(self._beta) == self._numSites:
-            grad = beta + (self._rbfFun.diffD(phi, D) * r[setIndex,:] * gammaNormalize[setIndex] * lambdaA[setIndex]).sum()
+            grad = beta + (self._rbfFun.diffD(phi, D) * r[setIndex,:] * gammaNormalize[setIndex] * lambdaA[setIndex]).sum(axis=0)
         else:
             gTemp = r[setIndex,:] * gammaNormalize[setIndex]
-            grad = (self._rbfFun.diffD(phi, D) * gTemp * lambdaA[setIndex]).sum(axis=0)
+            grad = (self._rbfFun.diffD(self._phi, D) * gTemp * lambdaA[setIndex]).sum(axis=0)
 
         return grad
+
+    def predictHessian(self, s0, x0=None):
+        if len(s0) > 1:
+            if len(s0) != self._numSites:
+                raise InputError("Gradient only available for"
+                                 +" a single observation")
+
+        x, s, D, A, Ac, x0, s0 = _predictSetup(self._x1, self._s,
+                                               x0, s0)
+
+        mu = x.dot(self._beta)
+        H = _getCovariance(self._phi, self._sigma2, self._tau2,
+                           D, self._rbfFun)
+
+        X = numpy.append(self._y, numpy.zeros(len(x0)))
+
+        muA, sigma2A, lambdaA = _conditionalMVN(X, mu, H, A, Ac)
+        lambdaA = lambdaA.reshape(len(lambdaA),1)
+
+        r = s0 - self._s
+        F = numpy.array(range(len(r)))
+        normR = numpy.linalg.norm(r,axis=1)
+        setIndex = F[normR!=0]
+        
+        D12 = D[:-1,-1].reshape(self._n,1)
+        gamma = H[:-1,-1].reshape(self._n,1)
+        normalize = numpy.zeros(len(normR))
+        normalize[setIndex] = (1/normR[setIndex])
+        normalize = normalize.reshape(len(normalize),1)
+        gammaNormalize = gamma * normalize
+        #gammaNormalize = (gamma * normalize).reshape(len(gamma),1);
+
+        hessian = numpy.eye(self._numSites) * sum(self._rbfFun.diffD(self._phi,D12[setIndex]) * normalize[setIndex] * lambdaA[setIndex]);
+        
+        #print -self._phi*gamma[setIndex] - self._rbfFun.diffD(self._phi,D12[setIndex])
+
+        # print r[setIndex,:].shape
+        # print (numpy.sqrt(self._rbfFun.diff2D(self._phi,0) * gamma[setIndex])).shape
+        # print (self._rbfFun.diffD(self._phi,0) * gammaNormalize[setIndex] * normalize[setIndex]).shape
+        # print gammaNormalize[setIndex].shape
+        # print normalize[setIndex].shape
+
+        R = numpy.sqrt(self._rbfFun.diff2D(self._phi,D12[setIndex]) - self._rbfFun.diffD(self._phi,D12[setIndex]) * normalize[setIndex]) * r[setIndex,:] * normalize[setIndex]
+
+        # print hessian
+        # print R.shape
+        # print lambdaA[setIndex].shape
+        # print numpy.diag(lambdaA[setIndex].ravel()).shape
+
+        print hessian
+        hessian += R.T.dot(numpy.diag(lambdaA[setIndex].ravel())).dot(R);
+        print hessian
+
+        # print len(F)
+        # print len(setIndex)
+        # print type(F)
+        # print type(setIndex)
+        Ac = numpy.array(list(set(F) - set(setIndex)))
+        #print Ac
+        #Ac = setdiff(F,setIndex);
+        #print lambdaA[Ac]
+        if len(Ac) > 0:
+            hessian += sum(self._rbfFun.diff2D(self._phi,0) * lambdaA[Ac] ) * numpy.eye(self._numSites);
+
+        return hessian
 
 def _unrollParam(theta, numBeta):
 
@@ -221,6 +287,14 @@ def _unrollParam(theta, numBeta):
 
 def _predictSetup(xOrig, sOrig, xPred, sPred):
     n, p = xOrig.shape
+
+    if type(sPred) is not numpy.ndarray:
+        # do not need further check because we
+        # would not use a GP for points on a line
+        sPred = numpy.array(sPred)
+
+    if len(sPred) == sPred.size:
+        sPred = sPred.reshape(1,len(sPred))
 
     if xPred is None:
         if p==1:
@@ -242,14 +316,6 @@ def _predictSetup(xOrig, sOrig, xPred, sPred):
                 raise InputError("Expecting " +str(p)+
                                  " number of parameters")
             
-    if type(sPred) is not numpy.ndarray:
-        # do not need further check because we
-        # would not use a GP for points on a line
-        sPred = numpy.array(sPred)
-
-    if len(sPred) == sPred.size:
-        sPred = sPred.reshape(1,len(sPred))
-
     x = numpy.append(xOrig, xPred, axis=0)
     s = numpy.append(sOrig, sPred, axis=0)
     D = ssd.squareform(ssd.pdist(s))
@@ -283,6 +349,14 @@ def _getParamDerivativeInfo(y, x1, beta, phi, sigma2, tau2, D, n, rbfFun):
 def _conditionalMVN(X, mu, sigma2, A, Ac):
 
     lambdaA = numpy.linalg.solve(sigma2[Ac][:,Ac],X[Ac]-mu[Ac])
+
+    # print lambdaA.shape
+    # print sigma2.shape
+    # print A
+    # print len(A)
+    # print len(Ac)
+    # print sigma2[A][:,Ac].dot(lambdaA)
+
     muA = mu[A] + sigma2[A][:,Ac].dot(lambdaA)
     sigma2A = sigma2[A][:,A] - sigma2[A][:,Ac].dot(numpy.linalg.solve(sigma2[Ac][:,Ac],sigma2[Ac][:,A]))
 
