@@ -149,11 +149,9 @@ class direct(object):
         '''     
         
         polyObj = PolygonObj(self._func,self._G,self._h)
-               
-        #return divideGivenPolygon(self._func,polyObj)
         return triangulatePolygon(self._func,polyObj)
 
-    def divide(self,iteration=50,numBox=1000,scaleOutput=False,full_output=False):
+    def divide(self, iteration=50, numBox=1000, scaleOutput=False, full_output=False):
         '''
         Dividing up the parameter space with respect to the type of bounds
 
@@ -224,9 +222,12 @@ class direct(object):
             ## identification
             # print includeMin
             if self._rectType:
-                directObjList = _divideRect(self._func,directObjList,self._scaleLB,self._boundDiff,conditionType=self._conditionType,targetMin=self._targetMin,includeMin=includeMin)
+                directObjList = _divideRect(self._func, directObjList, self._scaleLB, self._boundDiff,
+                                            conditionType=self._conditionType,
+                                            targetMin=self._targetMin, includeMin=includeMin)
             else:
-                directObjList = _dividePoly(self._func,directObjList,includeMin=includeMin,includeLocal=includeLocal)
+                directObjList = _dividePoly(self._func, directObjList,
+                                            includeMin=includeMin,includeLocal=includeLocal)
       
             # more information recording
             newBox.append(currentNumBox)
@@ -320,12 +321,12 @@ class direct(object):
         else:
             return directObjList
 
-def _divideRect(func,rectList,scaleLB,boundDiff,conditionType=None,targetMin=0,includeMin=False): 
+def _divideRect(func, rectList, scaleLB, boundDiff, conditionType=None, targetMin=0, includeMin=False): 
     
     if conditionType is None:
         potentialOptimalRectangle = numpy.array(identifyPotentialOptimalRectanglePareto(rectList,includeMin=includeMin))
     else:
-        if isinstance(conditionType,IdConditionType):   
+        if isinstance(conditionType, IdConditionType):   
             if conditionType == IdConditionType.Pareto:
                 potentialOptimalRectangle = numpy.array(identifyPotentialOptimalRectanglePareto(rectList,includeMin))
             elif conditionType == IdConditionType.Strong:
@@ -342,7 +343,7 @@ def _divideRect(func,rectList,scaleLB,boundDiff,conditionType=None,targetMin=0,i
     potentialOptimalRectangle = potentialOptimalRectangle[::-1]
 
     ## this will only happen if we are not using the Pareto front condition
-    if (len(potentialOptimalRectangle)==0):
+    if (len(potentialOptimalRectangle) == 0):
         return rectList
         
     # print len(potentialOptimalRectangle)
@@ -352,18 +353,16 @@ def _divideRect(func,rectList,scaleLB,boundDiff,conditionType=None,targetMin=0,i
         newRectList = divideGivenRectangle(func,rectObj,scaleLB,boundDiff)
         # now remove the object that we have split
         rectList.remove(rectObj)
-        # print len(rectList)
-        # print len(newRectList)
         rectList += newRectList
         
     return rectList
 
-def _dividePoly(func,polyList,includeMin=False,includeLocal=False):
+def _dividePoly(func, polyList, includeMin=False, includeLocal=False):
     # the list of feasible index
-    polyObjListIndex = identifyPotentialOptimalPolygonPareto(polyList,includeMin)
+    polyObjListIndex = identifyPotentialOptimalPolygonPareto(polyList, includeMin)
 
     numPoly = len(polyList)
-    # arbitary minimum
+    # arbitrary minimum
     currentMin = 1e10
     minIndex = None
     if includeLocal:
@@ -375,35 +374,16 @@ def _dividePoly(func,polyList,includeMin=False,includeLocal=False):
                 if o.getFx()<=currentMin:
                     currentMin = o.getFx()
                     minIndex = i
-        # now equiped with the information, we can finally proceed
+        # now equipped with the information, we can finally proceed
         if minIndex is not None:
             if minIndex not in polyObjListIndex:
                 polyObjListIndex.append(minIndex)
-                #print "Not in"
-            #else: 
-                #print "Already Included"
 
-    # for o in polyList:
-    #     print o
-
-    # for o in listObj:
-    #     print "\n listObj"
-    #     print o
-    #     print o.getLocation()
-
-    # plotDirectPolygon(polyList,polyObjListIndex)
-    # print len(polyObjListIndex)
-    # print "Look through the list of objects"
     polyOperatedList = list()
     
     for i in polyObjListIndex:
         o = polyList[i]
-        # print i
-        # print o
-        # print o.getLocation()
-        # print o.hasSplit()
         polyOperatedList.append(o)
-        # polyList.remove(o)
 
         newPolyObjList = divideGivenPolygon(func,o)
         #plotDirectPolygon(newPolyObjList)
@@ -412,35 +392,6 @@ def _dividePoly(func,polyList,includeMin=False,includeLocal=False):
 
     for i in range(0,len(polyOperatedList)):
         polyList.remove(polyOperatedList[i])
-        
-    # print "\n Again"
-    # for o in listObj:
-    #     print o
-    #     print o.getLocation()
-    #     print o.hasSplit()
-
-    # # go through them
-    # for index in polyObjListIndex:
-    #     # divide
-    #     newPolyObjList = divideGivenPolygon(func,polyList[index])
-    #     # remove the original because the new list includes it
-    #     polyList.remove(polyList[index])
-    #     # add to the list
-    #     polyList += newPolyObjList
-
-    # print "\n Again in the split"
-    # for o in polyOperateList:
-    #     # information
-    #     print o
-    #     print o.hasSplit()
-    #     print o.getLocation()
-    #     print o.getVertices()
-
-    #     # divide
-    #     newPolyObjList = divideGivenPolygon(func,o)
-    #     #plotDirectPolygon(newPolyObjList)
-    #     # add to the list
-    #     polyList += newPolyObjList
 
     return polyList
 
@@ -506,7 +457,7 @@ def directOptim(func, lb, ub, iteration=50, numBox=200, conditionType=None, targ
     if numBox is None:
         numBox = 200
 
-    ## we need to find the inputted bound so that we can rescale it to \left[0,1\right]
+    ## we need to find the inputed bound so that we can rescale it to \left[0,1\right]
     boundDiff = ub-lb
     scaleLB = -lb
     
@@ -530,7 +481,8 @@ def directOptim(func, lb, ub, iteration=50, numBox=200, conditionType=None, targ
     for k in range(0,iteration):
         ## to do, Pareto front for the size of boxes vs f(x)
         ## identification
-        rectList = _divideRect(func,rectList,scaleLB,boundDiff,conditionType=conditionType,targetMin=targetMin)
+        rectList = _divideRect(func, rectList, scaleLB, boundDiff,
+                               conditionType=conditionType, targetMin=targetMin)
         minIndex = findLowestObjIndex(rectList)
         fx = rectList[minIndex].getFx()
         
@@ -560,8 +512,8 @@ def directOptim(func, lb, ub, iteration=50, numBox=200, conditionType=None, targ
         
     # end for iteration
     if scaleOutput == False:
-        for i in range(0,len(rectList)):
-            rectList[i] = inverseScaleBounds(rectList[i],scaleLB,boundDiff)        
+        for i in range(0, len(rectList)):
+            rectList[i] = inverseScaleBounds(rectList[i], scaleLB, boundDiff)        
     
     if full_output:
         output['scale'] = scaleOutput
