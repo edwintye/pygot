@@ -1,6 +1,6 @@
-==============================
-py Global Optimization Toolbox
-==============================
+============================
+py Global Optimization Tools
+============================
 
 Tools that is useful for global optimization.
 

@@ -3,6 +3,7 @@ from unittest import TestCase
 import numpy
 
 from pygotools.direct import directOptim, plotDirectBox
+from pygotools.optutils import optimTestFun
 
 class TestStandardObjFunc(TestCase):
     def test_Rosen(self):
@@ -18,7 +19,7 @@ class TestStandardObjFunc(TestCase):
                                                  scaleOutput=False,
                                                  full_output=True)
 
-        plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+        # plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
         # rectOperation.plotParetoFront(rectListOptim)
         
@@ -35,7 +36,7 @@ class TestStandardObjFunc(TestCase):
                                                  scaleOutput=False,
                                                  full_output=True)
 
-        plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+        # plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
         # rectOperation.plotParetoFront(rectListOptim)
 
@@ -53,7 +54,7 @@ class TestStandardObjFunc(TestCase):
                                                  scaleOutput=False,
                                                  full_output=True)
 
-        plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+        # plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
         # rectOperation.plotParetoFront(rectListOptim)
         
@@ -70,7 +71,7 @@ class TestStandardObjFunc(TestCase):
                                                  scaleOutput=False,
                                                  full_output=True)
 
-        plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+        # plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
         # rectOperation.plotParetoFront(rectListOptim)
         
