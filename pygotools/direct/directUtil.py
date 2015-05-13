@@ -1,6 +1,7 @@
 
 __all__ = [
     'IdConditionType',
+    'identifyPotentialOptimalObjectPareto',
     'plotDirectBox',
     'plotDirectPolygon',
     'plotParetoFrontRect',
