@@ -1,44 +1,63 @@
 
 __all__ = [
-           'sqp'
-           ]
+    'sqp'
+    ]
 
-from pygotools.optutils.optCondition import exactLineSearch
+from pygotools.optutils.optCondition import exactLineSearch, sufficientNewtonDecrement
 from pygotools.optutils.consMani import addLBUBToInequality
-from pygotools.optutils.checkUtil import *
+from pygotools.optutils.checkUtil import checkArrayType
+from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
-from cvxopt import coneqp
+import numpy
 
-def sqp(func, grad, hessian=None, x0=None, lb=None, ub=None, G=None, h=None, A=None, b=None):
+from cvxopt.solvers import coneqp
+from cvxopt import matrix
 
-    theta = checkArrayType(x0)
-    G, h = addLBUBToBox(lb,ub,G,h)
+def sqp(func, grad, hessian=None, x0=None, lb=None, ub=None, G=None, h=None, A=None, b=None, disp=0):
 
-numpy.array(delta).dot(o['grad'])
+    x = checkArrayType(x0)
+    G, h = addLBUBToInequality(lb,ub,G,h)
+    oldFx = numpy.inf
+    fx = func(x)
 
-    for i in range(10):
-        theta = numpy.array(theta)
+    dispObj = Disp(disp)
+    i = 0
+
+    while abs(fx-oldFx)>=1e-12:
+
         if hessian is None:
-            H = forwardGradCallHessian(grad, theta)
+            H = forwardGradCallHessian(grad, x)
         else:
             H = hessian(x)
 
         g = grad(x)
+        # readjust the bounds
         if G is not None:
-            # readjust the bounds
-            hTemp = h - G*matrix(theta)
+            hTemp = h - G*matrix(x)
+            dims = {'l': G.size[0], 'q': [], 's':  []}
+        else:
+            hTemp = None
+            dims = []
+
         if A is not None:
-            bTemp = b - A*matrix(theta)
+            bTemp = b - A*matrix(x)
+        else:
+            bTemp = None
 
         # solving the QP to get the descent direction
-        qpOut = coneqp(matrix(H), matrix(g), G, hTemp, [], A, bTemp)
+        qpOut = coneqp(matrix(H), matrix(g), G, hTemp, dims, A, bTemp)
         # exact the descent diretion and do a line search
         deltaX = numpy.array(qpOut['x']).ravel()
-        t, fx = exactListSearch(1,theta,deltaX,func)
+        oldFx = fx
+        t, fx = exactLineSearch(1, x, deltaX, func)
     
-        theta += t * delta
+        x += t * deltaX
+        i += 1
+        dispObj.d(i, x, fx, deltaX, g)
+        
+        if sufficientNewtonDecrement(deltaX,g):
+            break
 
-    return theta
-
+    return x
 

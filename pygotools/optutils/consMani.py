@@ -2,7 +2,7 @@
 __all__ = [
     'lbubToBox',
     'addBoxToInequality',
-    'addBoxToInequalityLBUB',
+    'addLBUBToInequality',
     'feasiblePoint',
     'feasibleStartingValue',
     'findAnalyticCenter',
@@ -78,7 +78,7 @@ def addBoxToInequality(box=None, G=None, h=None):
         
     See Also
     --------
-    :func:`addBoxToInequalityLBUB`
+    :func:`addLBUBToInequality`
     
     '''
     if G is None and h is None and box is None:
@@ -124,7 +124,7 @@ def addBoxToInequality(box=None, G=None, h=None):
 
     return G, h
 
-def addBoxToInequalityLBUB(lb=None, ub=None, G=None, h=None):
+def addLBUBToInequality(lb=None, ub=None, G=None, h=None):
     '''
     Add the box constraints to inequalities
     
@@ -674,7 +674,7 @@ def redundantConstraintLBUB(lb, ub, G, h, x0=None, full_output=False):
         set of index of the redundant constraints
     '''
 
-    G, h = addBoxToInequalityLBUB(lb, ub, G, h)
+    G, h = addLBUBToInequality(lb, ub, G, h)
     return redundantConstraint(G, h, x0, False)
 
 def constraintToDualVertices(G, h, x0=None):

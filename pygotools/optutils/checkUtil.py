@@ -1,7 +1,7 @@
-__all__[
-        'checkArrayType',
-        'checkDimension'
-        ]
+__all__ = [
+    'checkArrayType',
+    'checkDimension'
+    ]
 
 import numpy
 
@@ -67,3 +67,24 @@ def checkDimension(x, y):
         raise InputError("The number of observations and time points should have the same length")
 
     return (x, y)
+
+def isNumeric(x):
+    '''
+    Test whether the input is a numeric
+
+    Parameters
+    ----------
+    x: 
+        anything
+
+    Returns
+    -------
+    bool:
+        True if it belongs to one of the recognized data type from
+        the list (int, numpy.int16, numpy.int32, numpy.int64,
+        float, numpy.float16, numpy.float32, numpy.float64)
+    '''
+    return isinstance(x,
+                      (int, numpy.int16, numpy.int32, numpy.int64,
+                      float, numpy.float16, numpy.float32, numpy.float64))
+
