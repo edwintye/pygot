@@ -1,24 +1,39 @@
-# no idea what it is doing here
-# copied most of it from scipy
-from __future__ import division, print_function, absolute_import
+from setuptools import setup
 
-import sys
+def readme():
+    with open('README.rst') as f:
+        return f.read()
 
-def configuration(parent_package='',top_path=None):
-    from numpy.distutils.misc_util import Configuration
-    config = Configuration('pygotools',parent_package,top_path)
-    config.add_subpackage('direct')
-    config.add_subpackage('gradient')
-    config.add_subpackage('convex')
-    config.add_subpackage('optutils')
+cmdclass = {}
+ext_modules =[]
+requires = [
+            'cvxopt',
+            'scipy>=0.10.0',
+            'numpy>=1.6.0'
+            ]
 
-    if sys.version_info[0] < 3:
-        config.add_subpackage('weave')
-        config.add_subpackage('_build_utils')
-        config.add_subpackage('_lib')
-        config.make_config_py()
-        return config
+tests_require = [
+                 'nose>=1.1'
+                 ]
 
-if __name__ == '__main__':
-    from numpy.distutils.core import setup
-    setup(**configuration(top_path='').todict())
+setup(name='pygotools',
+      version='0.1.0',
+      description='Global Optimization tools',
+      long_description=[],#readme(),
+      author="Edwin Tye",
+      author_email="Edwin.Tye@gmail.com",
+      packages=[
+                'pygotools',
+                'pygotools.direct',
+                'pygotools.gradient',
+                'pygotools.convex',
+                'pygotools.optutils'
+                ],
+      license='LICENCE.txt',
+      install_requires=requires,
+      cmdclass = cmdclass,
+      ext_modules = ext_modules,
+      tests_require=tests_require,
+      test_suite='nose.collector',
+      scripts=[]
+      )
