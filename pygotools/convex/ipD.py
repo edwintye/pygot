@@ -1,6 +1,6 @@
 
 __all__ = [
-    'ip'
+    'ipD'
     ]
 
 from pygotools.optutils.optCondition import exactLineSearch, backTrackingLineSearch, sufficientNewtonDecrement
@@ -19,7 +19,7 @@ from cvxopt import blas
 EPSILON = 1e-6
 maxiter = 100
 
-def ip(func, grad, hessian=None, x0=None,
+def ipD(func, grad, hessian=None, x0=None,
         lb=None, ub=None,
         G=None, h=None,
         A=None, b=None,
@@ -32,6 +32,7 @@ def ip(func, grad, hessian=None, x0=None,
     if G is not None:
         G = matrix(G)
         m,p = G.size
+        z = matrix(0.0,(m,1))
     else:
         m = 1.0
 
@@ -40,6 +41,7 @@ def ip(func, grad, hessian=None, x0=None,
 
     if A is not None:
         A = matrix(A)
+        y = matrix(0.0,(m,1))
     if b is not None:
         b = matrix(b)
 
@@ -62,6 +64,8 @@ def ip(func, grad, hessian=None, x0=None,
                 return t * func(x) - numpy.log(s).sum()
         return F
 
+    s = h - G * matrix(x)
+    z = 1/s
 
     while abs(fx-oldFx)>=EPSILON:
 
@@ -82,9 +86,9 @@ def ip(func, grad, hessian=None, x0=None,
         ## standard log barrier
         s = h - G * matrix(x)
         Gs = div(G,s[:,matrix(0,(1,p))])
-        s2 = s**2
+        zs = mul(s,z)
 
-        H += matrix(numpy.einsum('ji,ik->jk',G.T, div(G,s2[:,matrix(0,(1,p))])))
+        H += matrix(numpy.einsum('ji,ik->jk',G.T, div(G,zs[:,matrix(0,(1,p))])))
 
         Dphi = matrix(0.0,(p,1))
         blas.gemv(Gs, matrix(1.0,(m,1)),Dphi,'T')
@@ -97,7 +101,7 @@ def ip(func, grad, hessian=None, x0=None,
         # print type(g)
         # print type(t)
         # print type(y)
-        g = t * g + Dphi
+        g = t * g + Dy
         # print type(g)
         ## solving the QP to get the descent direction
         if A is not None:
@@ -106,6 +110,7 @@ def ip(func, grad, hessian=None, x0=None,
             qpOut = coneqp(H, g)
         ## exact the descent diretion and do a line search
         deltaX = numpy.array(qpOut['x']).ravel()
+        y += qpOut['y']
         oldFx = fx
 
         barrierFunc = logBarrier(x, func, t, G, h)
