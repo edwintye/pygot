@@ -1,4 +1,4 @@
-from pyGenericOdeModel import operateOdeModel,modelDef,odeLossFunc
+from pygom import OperateOdeModel,common_models,odeLossFunc
 import numpy
 import scipy.integrate
 import math,time,copy

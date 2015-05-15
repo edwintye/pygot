@@ -16,12 +16,8 @@ import scipy.spatial
 
 D = scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(s))
 
-import scipy.stats
-
-def rbfFun(phi,D):
-    return numpy.exp(-phi * D)
-
-from pygot.gp import GP, exp
+import scipy.stats, scipy.optimize
+from pygotools.responseSurface import GP, exp
 
 rbfFun = exp()
 rbfFun.f(1e-8,D)
@@ -44,16 +40,17 @@ scipy.optimize.minimize(fun=gp.negLogLike,
 gp.predict(s,x1)
 gp.predictGradient(s,x1)
 gp.predictGradient(s[0],x1[0])
+from pygotools.gradient.finiteDifference import forward
+forward(gp.predict,s[0])
+gp.predictGradient(s[0])
 
 res = scipy.optimize.minimize(fun=gp.negLogLike,
                               x0=theta,
                               jac=gp.gradient,
-                              hess=gp.hessian,
-                              method='trust-ncg',
+                              method='SLSQP',
                               bounds=box)
 
-
-from pygot.optutils import optimTestFun
+from pygotools.optutils import optimTestFun
 
 f = optimTestFun.rosen
 
@@ -62,14 +59,27 @@ A = numpy.random.rand(niter,2)*4 - 2
 
 y = numpy.array([f(a) for a in A])
 
-gp = GP(y,None,A)
+gp = GP(y,A,A)
+
+theta1 = theta.tolist() + [1.,1.]
+box = list()
+for i in range(3):
+    box.append((None,None))
+for i in range(3):
+    box.append((1e-8,numpy.inf))
 
 res = scipy.optimize.minimize(fun=gp.negLogLike,
-                              x0=theta,
+                              x0=theta1,
                               jac=gp.gradient,
-                              method='SLSQP',
-                              bounds=box)
+                              method='tnc',
+                              options={'maxiter':1000},
+                              bounds=box,
+                              callback=callback)
 
+def callback(x):
+    a = x.copy()
+    b = gp.negLogLike(x)
+    print numpy.append(a,b)
 
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
@@ -89,7 +99,7 @@ yPred = gp.predict(APred)
 
 fig = plt.figure()
 ax = Axes3D(fig) 
-ax.plot_trisurf(A[:,0], A[:,1], yPred, cmap=cm.jet, linewidth=0.2)
+ax.plot_trisurf(APred[:,0], APred[:,1], numpy.log(yPred), cmap=cm.jet, linewidth=0.2)
 ax.view_init(elev=40,azim=105)
 plt.show()
 
@@ -103,17 +113,18 @@ res1 = scipy.optimize.minimize(fun=gp.predict,
                               x0=APred[numpy.random.randint(len(APred))-1],
                               method='newton-cg')
 
-res1 = scipy.optimize.minimize(fun=gp.predict,
-                              jac=gp.predictGradient,
-                              x0=APred[numpy.random.randint(len(APred))-1],
-                              method='newton-cg')
+res2 = scipy.optimize.minimize(fun=gp.predict,
+                               jac=gp.predictGradient,
+                               hess=gp.predictHessian,
+                               x0=APred[numpy.random.randint(len(APred))-1],
+                               method='trust-ncg')
 
 
 j = numpy.random.randint(len(A))-1
 
-import pygot.gradient.finiteDifference
-pygot.gradient.finiteDifference.forward(gp.predict,A[j])
-pygot.gradient.finiteDifference.central(gp.predict,A[j])
+from pygotools.gradient import finiteDifference
+finiteDifference.forward(gp.predict,A[j])
+finiteDifference.central(gp.predict,A[j])
 gp.predictGradient(A[j])
 
 gp.predictHessian(A[j])

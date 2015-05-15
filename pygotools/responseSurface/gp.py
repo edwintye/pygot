@@ -4,7 +4,7 @@ __all__ = ['GP']
 import numpy
 import scipy.spatial.distance as ssd
 import scipy.stats
-import pygot.gp
+import pygotools.responseSurface
 
 class InputError(Exception):
     '''
@@ -23,8 +23,8 @@ class GP(object):
             self._x1 = numpy.ones((self._n,1))
             self._numBeta = 1
         else:
-            self._x1 = numpy.append(numpy.ones(self._n),x,axis=1)
-            n, self._numBeta = x.shape
+            self._x1 = numpy.append(numpy.ones((self._n,1)),x,axis=1)
+            n, self._numBeta = self._x1.shape
 
             if n!=self._n:
                 raise InputError("Number of rows in x and y must be equal")
@@ -32,7 +32,7 @@ class GP(object):
         self._s = s
         n1 , self._numSites = s.shape
         if n1 != self._n:
-          raise InputError("Number of rows in s and y must be equal")
+            raise InputError("Number of rows in s and y must be equal")
 
         self._D = ssd.squareform(ssd.pdist(s))
 
@@ -45,7 +45,7 @@ class GP(object):
             self._tau2 = None
 
         if rbfFun is None:
-            self._rbfFun = pygot.gp.covFun.exp()
+            self._rbfFun = pygotools.responseSurface.covFun.exp()
 
     def negLogLike(self,theta):
         beta, phi, sigma2, tau2 = _unrollParam(theta, self._numBeta)
@@ -62,7 +62,7 @@ class GP(object):
             self._sigma2 = sigma2
             self._tau2 = tau2
             return ll
-        except Exception as e:
+        except Exception:
             return numpy.inf
 
     def gradient(self, theta):
@@ -79,7 +79,7 @@ class GP(object):
         g[self._numBeta] = (quadForm.T.dot(DG.dot(quadForm)) - numpy.trace(dPhi))/2; 
         g[self._numBeta+1] = (quadForm.T.dot((G/sigma2).dot(quadForm)) - numpy.trace(dSigma))/2;
         if tau2 is not None:
-            g[3] = (quadForm.T.dot(quadForm) - numpy.trace(dTau))/2;
+            g[self._numBeta+2] = (quadForm.T.dot(quadForm) - numpy.trace(dTau))/2;
         return -g
 
     def hessian(self, theta):
@@ -142,20 +142,6 @@ class GP(object):
         return theta
 
     def predict(self, s0, x0=None, full_output=False):
-        # if type(x0) is not numpy.ndarray:
-        #     x0 = numpy.array(x0)
-
-        # n, p = self._x1.shape
-        # if p==1:
-        #     x0 = x0.reshape(len(x0),p)
-
-        # x = numpy.append(self._x1, x0, axis=0)
-        # s = numpy.append(self._s, s0, axis=0)
-        # D = ssd.squareform(ssd.pdist(s))
-
-        # Ac = range(self._n)
-        # A = range(self._n, len(x))
-
         x, s, D, A, Ac, x0, s0 = _predictSetup(self._x1, self._s,
                                        x0, s0)
 
@@ -200,11 +186,10 @@ class GP(object):
         normalize[setIndex] = 1/normR[setIndex]
         gammaNormalize = (gamma * normalize).reshape(len(gamma),1);
 
+        gTemp = r[setIndex,:] * gammaNormalize[setIndex]
+        grad = (-self._phi * gTemp * lambdaA[setIndex]).sum(axis=0)
         if len(self._beta) == self._numSites:
-            grad = beta + (self._rbfFun.diffD(phi, D) * r[setIndex,:] * gammaNormalize[setIndex] * lambdaA[setIndex]).sum(axis=0)
-        else:
-            gTemp = r[setIndex,:] * gammaNormalize[setIndex]
-            grad = (self._rbfFun.diffD(self._phi, D) * gTemp * lambdaA[setIndex]).sum(axis=0)
+            grad += self._beta
 
         return grad
 
@@ -279,14 +264,19 @@ def _unrollParam(theta, numBeta):
     phi = theta[numBeta]
     sigma2 = theta[numBeta+1]
 
-    if len(theta)==numBeta+2:
+    if len(theta)==numBeta+1:
         tau2 = None
     else:
         tau2 = theta[numBeta+2]
+
+    # print theta
+    # print tau2
+        
     return beta, phi, sigma2, tau2
 
 def _predictSetup(xOrig, sOrig, xPred, sPred):
     n, p = xOrig.shape
+    nS, pS = sOrig.shape
 
     if type(sPred) is not numpy.ndarray:
         # do not need further check because we
@@ -297,10 +287,13 @@ def _predictSetup(xOrig, sOrig, xPred, sPred):
         sPred = sPred.reshape(1,len(sPred))
 
     if xPred is None:
+        xPred = numpy.ones((len(sPred),1))
         if p==1:
-            xPred = numpy.ones((len(sPred),1))
+            pass
+        elif p==pS+1:
+            xPred = numpy.append(xPred,sPred.copy(),axis=1)
         else:
-            xPred = sPred.copy()
+            raise Exception("Input dimensions not correct")
     else:
         if type(xPred) is not numpy.ndarray:
             if type(xPred) in (list, tuple):
@@ -316,6 +309,9 @@ def _predictSetup(xOrig, sOrig, xPred, sPred):
                 raise InputError("Expecting " +str(p)+
                                  " number of parameters")
             
+    #print xOrig.shape
+    #print xPred.shape
+
     x = numpy.append(xOrig, xPred, axis=0)
     s = numpy.append(sOrig, sPred, axis=0)
     D = ssd.squareform(ssd.pdist(s))
@@ -333,7 +329,11 @@ def _getCovariance(phi, sigma2, tau2, D, rbfFun):
 
 def _getParamDerivativeInfo(y, x1, beta, phi, sigma2, tau2, D, n, rbfFun):
     G = sigma2*rbfFun.f(phi,D);
-    H = tau2*numpy.eye(n) + G;
+    if tau2 is None:
+        H = G
+    else:
+        H = tau2*numpy.eye(n) + G
+
     W = (y-x1.dot(beta));
 
     invH = numpy.linalg.solve(H,numpy.eye(n))
