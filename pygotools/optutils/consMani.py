@@ -108,19 +108,18 @@ def addBoxToInequality(box=None, G=None, h=None):
 
             # don't have to further check dimension because 
             # it will be checked later anyway
-            if A is None:
-                G = A
-                h = b
-            else:
-                # bind
+            if A is not None:
                 G = numpy.append(G, A, axis=0)
                 h = numpy.append(h, b, axis=0)
 
         else:
             raise Exception("Have G in Gx<=h but not h")
-    else: # A is None
+    else: # G is None
         if h is not None:
             raise Exception("Have h in Gx<=h but not G")
+        
+        G = A
+        h = b
 
     return G, h
 

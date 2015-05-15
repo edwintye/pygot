@@ -10,12 +10,12 @@ def lineSearch(t, theta, delta, func):
         return func(theta + t*delta)
     return F
 
-def backTrackingLineSearch(t, theta, delta, func, grad, alpha=0.1, beta=0.5):
+def backTrackingLineSearch(t, theta, delta, func, g, alpha=0.1, beta=0.5):
     
     f = lineSearch(1,theta,delta,func)
     fx = f(0)
     fdeltaX = f(t)
-    g = grad(theta)
+    #g = grad(theta)
     newtonDecrement = delta.dot(g)
 
     while fdeltaX > fx + alpha * t * newtonDecrement:
@@ -24,10 +24,11 @@ def backTrackingLineSearch(t, theta, delta, func, grad, alpha=0.1, beta=0.5):
 
     return t, fdeltaX
 
-def exactLineSearch(t, theta, delta, func):
-    f = lineSearch(1,theta,delta,func)
-    t, fx, ierr, numfunc = scipy.optimize.fminbound(f, 0, 1, full_output=True) 
-    return t, fx
+def exactLineSearch(t0, theta, delta, func):
+    f = lineSearch(t0,theta,delta,func)
+    res = scipy.optimize.minimize_scalar(f,bracket=(1e-8,t0))
+    #print res 
+    return res['x'], res['fun']
 
 def sufficientNewtonDecrement(deltaX, grad):
     if abs(deltaX.dot(grad)) <= 1e-6:

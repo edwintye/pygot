@@ -36,7 +36,7 @@ class Disp(object):
         elif self._level==3:
             print "iter  f(x)     Parameters"
         elif self._level==4:
-            print "iter  f(x)     d f'(x)"
+            print "iter  f(x)     Newton Decrement"
         
     def _fx(self, fx):
      	print "{0:0.2g}".format(fx).ljust(8),
