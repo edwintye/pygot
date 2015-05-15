@@ -22,23 +22,23 @@ def checkArrayType(x):
     '''
 
     if isinstance(x, numpy.ndarray):
-        pass
+        y = x.copy()
     elif isinstance(x, (list, tuple)):
         if isNumeric(x[0]):
-            x = numpy.array(x)
+            y = numpy.array(x)
         elif isinstance(x[0], (list, tuple, numpy.ndarray)):
             if isNumeric(x[0][0]):
-                x = numpy.array(x)
+                y = numpy.array(x)
             else:
                 raise ArrayError("Expecting elements of float or int")
         else:
             raise ArrayError("Expecting elements of float or int")
     elif isNumeric(x):
-        x = numpy.array([x])
+        y = numpy.array([x])
     else:
         raise ArrayError("Expecting an array like object")
 
-    return x
+    return y
 
 def checkDimension(x, y):
     '''

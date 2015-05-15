@@ -13,7 +13,7 @@ import numpy
 import numpy.linalg
 
 from cvxopt.solvers import coneqp
-from cvxopt import matrix, mul, div
+from cvxopt import matrix, mul, div, spdiag
 from cvxopt import blas
 
 EPSILON = 1e-6
@@ -46,6 +46,8 @@ def ipD(func, grad, hessian=None, x0=None,
         b = matrix(b)
 
     oldFx = numpy.inf
+    oldGrad = None
+    deltaX = None
     fx = func(x)
 
     dispObj = Disp(disp)
@@ -54,28 +56,27 @@ def ipD(func, grad, hessian=None, x0=None,
     mu = 5.0
     step0 = 1.0  # back tracking search step maximum value
 
-    def logBarrier(x,func,t,G,h):
-        def F(x):
-            s = h - G * matrix(x)
-            s = numpy.array(s)
-            if numpy.any(s<=0):
-                return numpy.inf
-            else:
-                return t * func(x) - numpy.log(s).sum()
-        return F
-
     s = h - G * matrix(x)
-    z = 1/s
+    z = div(1.0, s)
 
     while abs(fx-oldFx)>=EPSILON:
 
+        g = matrix(grad(x))
+
         if hessian is None:
-            H = forwardGradCallHessian(grad, x)
+            if oldGrad is None:
+                diffG = numpy.array(g - oldGrad)
+                #H = SR1(H, diffG, deltaX)
+                #H = SR1Alpha(H, diffG, deltaX)
+                H = BFGS(numpy.array(H), diffG, numpy.array(deltaX))
+                #H = DFP(H, diffG, deltaX)
+
+                #H = forwardGradCallHessian(grad, x)
         else:
             H = hessian(x)
 
         H = t * matrix(H)
-        g = matrix(grad(x))
+
 
         # readjust the bounds
         if A is not None:
@@ -112,6 +113,7 @@ def ipD(func, grad, hessian=None, x0=None,
         deltaX = numpy.array(qpOut['x']).ravel()
         y += qpOut['y']
         oldFx = fx
+        oldGrad = grad
 
         barrierFunc = logBarrier(x, func, t, G, h)
 
@@ -121,6 +123,10 @@ def ipD(func, grad, hessian=None, x0=None,
         i += 1
         
         s = h - G * matrix(x)
+
+        print deltaZ(x, deltaX, t, z, G, h)
+        print rDual(g, z, G, y, A)
+        print rCent(x, z, s, t)
         # print "augmented obj: "+ str(barrierFunc(x))
         # print "obj: "+str(func(x))
         # print "t = "+str(t)
@@ -150,9 +156,9 @@ def ipD(func, grad, hessian=None, x0=None,
         s = numpy.array(h - G * matrix(x)).ravel()
         z = numpy.array(1.0 / (t * s))
 
-        gap = calculateDualityGap(func, x,
-                                  z, G, h,
-                                  y, A, b)
+        gap = dualityGap(func, x,
+                         z, G, h,
+                         y, A, b)
 
         output['s'] = s
         output['y'] = y
@@ -175,7 +181,7 @@ def findInitialBarrier(g,y,A):
 
     return t
 
-def calculateDualityGap(func, x, z, G, h, y, A, b):
+def dualityGap(func, x, z, G, h, y, A, b):
     gap = func(x)
     if A is not None:
         A = numpy.array(A)
@@ -192,4 +198,38 @@ def calculateDualityGap(func, x, z, G, h, y, A, b):
         # print gap
 
     return gap
+
+def surrogateGap(x, s, z):
+    return s.T * z
+
+def deltaZ(x, deltaX, t, z, G, h):
+    s = G * x - h
+    rC = rCent(x, z, s, t)
+    return div(rCent,s) - div(spdiag(z) * G * deltaX,s)
+    
+def rDual(g, z, G, y, A):
+    if G is not None:
+        g += G.T * z
+    if A is not None:
+        g += A.T * y
+    return g
+
+def rCent(x, z, s, t):
+    return -mul(z, s) - (1.0/t)
+
+def rPri(x, A, b):
+    return A * x - b
+
+def logBarrier(x,func,t,G,h):
+    def F(x):
+        if type(x) is numpy.ndarray:
+            x = matrix(x)
+
+        s = h - G * x
+        s = numpy.array(s)
+        if numpy.any(s<=0):
+            return numpy.inf
+        else:
+            return t * func(x) - numpy.log(s).sum()
+    return F
 

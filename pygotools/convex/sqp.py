@@ -8,6 +8,7 @@ from pygotools.optutils.consMani import addLBUBToInequality
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
+from .approxH import *
 
 import numpy
 
@@ -34,19 +35,32 @@ def sqp(func, grad, hessian=None, x0=None,
         b = matrix(b)
 
     oldFx = numpy.inf
+    oldGrad = None
+    deltaX = None
     fx = func(x)
 
     dispObj = Disp(disp)
     i = 0
 
+    if hessian is None:
+        H = numpy.eye(len(x))
+
     while abs(fx-oldFx)>=EPSILON:
 
+        g = grad(x)
+
         if hessian is None:
-            H = forwardGradCallHessian(grad, x)
+            if oldGrad is not None:
+                diffG = g - oldGrad
+                #H = SR1(H, diffG, deltaX)
+                #H = SR1Alpha(H, diffG, deltaX)
+                H = BFGS(H, diffG, deltaX)
+                #H = DFP(H, diffG, deltaX)
+            #print H
+            #H = forwardGradCallHessian(grad, x)
         else:
             H = hessian(x)
 
-        g = grad(x)
         # readjust the bounds
         if G is not None:
             hTemp = h - G*matrix(x)
@@ -65,6 +79,8 @@ def sqp(func, grad, hessian=None, x0=None,
         # exact the descent diretion and do a line search
         deltaX = numpy.array(qpOut['x']).ravel()
         oldFx = fx
+        oldGrad = g
+
         t, fx = exactLineSearch(1, x, deltaX, func)
         
         #print qpOut
@@ -81,7 +97,7 @@ def sqp(func, grad, hessian=None, x0=None,
 
     # TODO: full_output- dual variables
     if full_output:
+        qpOut['H'] = H
         return x, qpOut
     else:
         return x
-
