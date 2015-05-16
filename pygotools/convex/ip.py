@@ -9,8 +9,9 @@ from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
+
+from .ipUtil import _findInitialBarrier, _dualityGap
 import numpy
-import numpy.linalg
 
 from cvxopt.solvers import coneqp
 from cvxopt import matrix, mul, div
@@ -89,7 +90,7 @@ def ip(func, grad, hessian=None, x0=None,
         Dphi = matrix(0.0,(p,1))
         blas.gemv(Gs, matrix(1.0,(m,1)),Dphi,'T')
         if i==0:
-            t = findInitialBarrier(g,Dphi,A)
+            t = _findInitialBarrier(g,Dphi,A)
             # print "First iteration"
             # print float(numpy.linalg.lstsq(g, -y)[0])
             # t = float(numpy.linalg.lstsq(g, -y)[0][0][0])
@@ -120,9 +121,9 @@ def ip(func, grad, hessian=None, x0=None,
         # print "obj: "+str(func(x))
         # print "t = "+str(t)
         # print "gap = " +str(m/t)
-        # print "step = " +str(step0)
-        # print s
-        # print x
+        # print "step = " +str(step0) + "\n"
+        #print s
+        #print x
 
         #print qpOut
         dispObj.d(i, x , fx, deltaX, g)
@@ -145,9 +146,9 @@ def ip(func, grad, hessian=None, x0=None,
         s = numpy.array(h - G * matrix(x)).ravel()
         z = numpy.array(1.0 / (t * s))
 
-        gap = calculateDualityGap(func, x,
-                                  z, G, h,
-                                  y, A, b)
+        gap = _dualityGap(func, x,
+                          z, G, h,
+                          y, A, b)
 
         output['s'] = s
         output['y'] = y
@@ -155,36 +156,11 @@ def ip(func, grad, hessian=None, x0=None,
         output['subopt'] = m/t
         output['dgap'] = gap
         output['fx'] = func(x)
+        output['H'] = numpy.array(H)
 
         return x, output
     else:
         return x
 
 
-def findInitialBarrier(g,y,A):
-    if A is None:
-        t = float(numpy.linalg.lstsq(g, -y)[0].ravel()[0])
-    else:
-        X = numpy.append(A,g,axis=1)
-        t = float(numpy.linalg.lstsq(X, -y)[0].ravel()[-1])
-
-    return t
-
-def calculateDualityGap(func, x, z, G, h, y, A, b):
-    gap = func(x)
-    if A is not None:
-        A = numpy.array(A)
-        b = numpy.array(b).ravel()
-        gap += y.dot(A.dot(x) - b)
-        # print gap
-    if G is not None:
-        G = numpy.array(G)
-        h = numpy.array(h).ravel()
-        # print G
-        # print h
-        # print G.dot(x) - h
-        gap += z.dot(G.dot(x) - h)
-        # print gap
-
-    return gap
 

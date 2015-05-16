@@ -24,11 +24,14 @@ def backTrackingLineSearch(t, theta, delta, func, g, alpha=0.1, beta=0.5):
 
     return t, fdeltaX
 
-def exactLineSearch(t0, theta, delta, func):
+def exactLineSearch(t0, theta, delta, func, g=None):
     f = lineSearch(t0,theta,delta,func)
     res = scipy.optimize.minimize_scalar(f,bracket=(1e-8,t0))
     #print res 
-    return res['x'], res['fun']
+    if res['x'] >= 1.0:
+        return 1.0, float(res['fun'])
+    else:
+        return float(res['x']), float(res['fun'])
 
 def sufficientNewtonDecrement(deltaX, grad):
     if abs(deltaX.dot(grad)) <= 1e-6:
