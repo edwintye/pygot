@@ -25,6 +25,7 @@ def ipD(func, grad, hessian=None, x0=None,
         lb=None, ub=None,
         G=None, h=None,
         A=None, b=None,
+        maxiter=100,
         disp=0, full_output=False):
 
     x = checkArrayType(x0)
@@ -45,7 +46,13 @@ def ipD(func, grad, hessian=None, x0=None,
     i = 0
     t = 0.01
     mu = 5.0
-    step0 = 1.0  # back tracking search step maximum value
+    # because we determine the size of the back tracking
+    # step on the fly, we don't give it a maximum.  At the
+    # same time, because we are only evaluating the residuals
+    # of the KKT system, there are times where we may want to
+    # give the descent a nudge
+    #step0 = 1.0  # back tracking search step maximum value
+    noImprovement = 0
 
     if G is not None:
         s = h - G * matrix(x)
@@ -55,7 +62,7 @@ def ipD(func, grad, hessian=None, x0=None,
     if hessian is None:
         approxH = BFGS
 
-    while abs(fx-oldFx)>=EPSILON:
+    while 1>=EPSILON:
 
         gOrig = matrix(grad(x))
         blas.copy(gOrig,g)
@@ -133,14 +140,53 @@ def ipD(func, grad, hessian=None, x0=None,
         oldFx = fx
         oldGrad = gOrig
 
-        step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
-        #step, fx = backTrackingLineSearch(step0, x, deltaX, barrierFunc, grad(x))
+        maxStep = _maxStepSize(z, matrix(x), matrix(deltaX), t, G, h)
+        if noImprovement>=5:
+            # print "using obj line search"
+        #step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
+            #step, fx = backTrackingLineSearch(maxStep, x, deltaX, barrierFunc, grad(x))
+            step, fx = backTrackingLineSearch(maxStep, x, deltaX, func, grad(x))
+
         # print "step"
         # print step
         # print "fx"
         # print fx
         # print "deltaX"
         # print deltaX
+
+        else:
+            residualFunc = residualLineSearch(maxStep,
+                                              matrix(x), matrix(deltaX),
+                                              grad, t,
+                                              z, _deltaZ, G, h,
+                                              y, deltaY, A, b,
+                                              _rDual,_rPri)
+
+        # print " after max step"
+        # print z +maxStep * _deltaZ(matrix(x), matrix(deltaX), t, z, G, h)
+
+
+        # print "full step"
+        # print residualFunc(1.0)
+        # print "no step"
+        # print residualFunc(0.0)
+        # print "max step"
+        #print maxStep
+        #print type(maxStep)
+        # print residualFunc(maxStep)
+
+            step, fx =  _backTrackingLineSearch(maxStep, residualFunc, -residualFunc(0.0))
+
+        # print "z"
+        # print z
+        # print "step"
+        # print step
+        # print "deltaZ"
+        # print  _deltaZ(matrix(x), matrix(deltaX), t, z, G, h)
+
+        z += step * _deltaZ(matrix(x), matrix(deltaX), t, z, G, h)
+        # print "new z "
+        # print z
 
         x += step * deltaX
         # print "x"
@@ -187,8 +233,7 @@ def ipD(func, grad, hessian=None, x0=None,
         # print type(deltaZ(matrix(x), matrix(deltaX), t, z, G, h))
         # print type(z)
         # print type(step)
-        z += step * _deltaZ(matrix(x), matrix(deltaX), t, z, G, h)
-        # print z
+
         # print h - G * matrix(x)
         # print z.T * (h - G * matrix(x))
 
@@ -205,13 +250,13 @@ def ipD(func, grad, hessian=None, x0=None,
         # print t
 
         #print qpOut
-        #dispObj.d(i, x , func(x), deltaX, numpy.array(g))
+        dispObj.d(i, x , func(x), deltaX, numpy.array(g))
         feasible = True
 
         if eta >= EPSILON:
             feasible = False
         if G is not None:
-            r = _rDual(gOrig, z, G, y, A)
+            r = _rDual(x, grad, z, G, y, A)
             if blas.nrm2(r) >= EPSILON:
                 feasible = False
         if A is not None:
@@ -220,32 +265,52 @@ def ipD(func, grad, hessian=None, x0=None,
                 feasible = False
 
         if feasible:
+            print "feasible"
             break
         else:
+            if abs(fx-oldFx)<=EPSILON:
+                noImprovement += 1
+                if noImprovement >= 10:
+                    H = matrix(numpy.eye(p))
+            else:
+                noImprovement = 0
             t = mu * m / eta
         
-        if i >= 10:
+        if i >= maxiter:
             break
 
-        print "augmented obj: "+ str(barrierFunc(x))
-        print "obj: "+str(func(x))
-        print "t = "+str(t)
-        print "gap = " +str(eta)
-        print "step = " +str(step)
-        print "max step =" +str(_maxStepSize(z, matrix(x), matrix(deltaX), t, G, h))
+        # print "\naugmented obj: "+ str(barrierFunc(x))
+        # print "iteration = " +str(i)
+        # print "obj: "+str(func(x))
+        # print "t = "+str(t)
+        # print "gap = " +str(eta)
+        # print "step = " +str(step)
+        # print "max step =" +str(_maxStepSize(z, matrix(x), matrix(deltaX), t, G, h))
+        # print "full step"
+        # print residualFunc(1.0)
+        # print "no step"
+        # print residualFunc(0.0)
+        # print "max step"
+        # print residualFunc(maxStep)
+        # print "dual residual"
+        # print blas.nrm2(_rDual(x, grad, z, G, y, A))
+        # print "obj with full step"
+        # print func(x+maxStep * deltaX)
+                
         # print "z : "
         # print z
-        residualFunc = residualLineSearch(step, matrix(x), matrix(deltaX), g, t,
-                                          z, _deltaZ, G, h,
-                                          y, deltaY, A, b,
-                                          _rDual,_rPri)
-        print "residual"
-        print residualFunc(0)
-        print "residual +"
-        print numpy.linalg.norm(residualFunc(step))
-        print "residual backtrack"
-        print _backTrackingLineSearch(1, residualFunc, residualFunc(0), alpha=0.1, beta=0.5)
-        print ""
+
+        # residualFunc = residualLineSearch(step, matrix(x), matrix(deltaX), g, t,
+        #                                   z, _deltaZ, G, h,
+        #                                   y, deltaY, A, b,
+        #                                   _rDual,_rPri)
+        # print "residual"
+        # print residualFunc(0)
+        # print "residual +"
+        # print numpy.linalg.norm(residualFunc(step))
+        # print "residual backtrack"
+        # print _backTrackingLineSearch(1, residualFunc, -residualFunc(0))
+
         # print s
         # print x
 
@@ -280,7 +345,7 @@ def ipD(func, grad, hessian=None, x0=None,
         if G is not None:
             output['s'] = numpy.array(s).ravel()
             output['z'] = numpy.array(z).ravel()
-            output['rDual'] = numpy.array(_rDual(gOrig, z, G, y, A)).ravel()
+            output['rDual'] = numpy.array(_rDual(x, grad, z, G, y, A)).ravel()
         if A is not None:
             output['rPri'] = numpy.array(_rPri(x, A, b)).ravel()
             output['y'] = numpy.array(y).ravel()
@@ -301,7 +366,8 @@ def _deltaZ(x, deltaX, t, z, G, h):
     #return spdiag(div(z,-s)) * (G * matrix(deltaX)) + div(rC,-s)
     #return div(rC,-s) - div(spdiag(z) * G * deltaX,s)
     
-def _rDual(g, z, G, y, A):
+def _rDual(x, gradFunc, z, G, y, A):
+    g = matrix(gradFunc(numpy.array(x)))
     if G is not None:
         g += G.T * z
     if A is not None:
@@ -322,19 +388,65 @@ def _maxStepSize(z, x, deltaX, t, G, h):
     npDeltaZ = numpy.array(_deltaZ(x, deltaX, t, z, G, h))
     index = npDeltaZ<0
     npZ = numpy.array(z)
+    # print "delta z"
+    # print npDeltaZ
+    # print "z"
+    # print npZ
+    # print "rate"
+    # print -npZ/npDeltaZ
 
-    return min(1,min(-npZ[index]/npDeltaZ[index]))
+    s = min(1,min(-npZ[index]/npDeltaZ[index]))
+    # print "newZ"
+    # print npZ * s * npDeltaZ
+    npZTemp = npZ + s * npDeltaZ
 
-def residualLineSearch(step,x, deltaX, g, t,
+    while numpy.any(npZTemp<=0):
+        s *= 0.5
+        npZTemp = npZ + s * npDeltaZ
+        # print "s"
+        # print s
+        # print "new z"
+        # print npZTemp
+
+    # print "diff"
+    # print -npZ[index]/npDeltaZ[index]
+    return float(s)
+
+def residualLineSearch(step, x, deltaX,
+                       gradFunc, t,
                        z, deltaZFunc, G, h,
                        y, deltaY, A, b,
                        dualFunc,priFunc):
     
     def F(step):
         newX = x + step * deltaX
+        # print "step size"
+        # print step
+        # print "old x"
+        # print x
+        # print "new x"
+        # print newX
         if z is not None:
             newZ = z + step * deltaZFunc(x, deltaX, t, z, G, h)
-            r1 = numpy.array(dualFunc(g, z, G, y, A)).ravel()
+
+            # print "function of residual line search"
+            # print "deleta Z func"
+            # print deltaZFunc(x, deltaX, t, z, G, h)
+            # print "z"
+            # print z
+            # print "step size"
+            # print step
+            # print "change of z"
+            # print step * deltaZFunc(x, deltaX, t, z, G, h)
+            # print "new z"
+            # print newZ
+
+            # if numpy.any(numpy.array(newZ)>0):
+            #     r1 = numpy.ones(1) * numpy.Inf
+            # else:
+            r1 = numpy.array(dualFunc(newX, gradFunc, newZ, G, y, A)).ravel()
+        else:
+            r1 = numpy.zeros(1)
 
         if y is not None:
             newY = y + step * deltaY
@@ -343,18 +455,44 @@ def residualLineSearch(step,x, deltaX, g, t,
             r2 = numpy.zeros(1)
 
         r = numpy.append(r1,r2)
+        # print "full vector"
+        # print r
         return float(numpy.linalg.norm(r))
     return F
 
 
-def _backTrackingLineSearch(t, f, scale, alpha=0.1, beta=0.5):
+def _backTrackingLineSearch(step, f, scale, alpha=0.1, beta=0.5):
     
-    fx = f(0)
-    fdeltaX = f(t)
+    maxStep = step
+
+    fx = f(0.0)
+    fdeltaX = f(step)
     #g = grad(theta)
 
-    while fdeltaX > fx + alpha * t * scale:
-        t *= beta
-        fdeltaX = f(t)
+    # print "internal step"
+    # print step
+    # print "scale, i.e at zero"
+    # print scale
 
-    return t, fdeltaX
+    # print "at zero"
+    # print fx
+    # print "at one"
+    # print fdeltaX
+
+    #print "residual line search"
+    i = 0
+    while fdeltaX > fx + alpha * step * scale:
+        # print "step="+str(step)
+        # print (fdeltaX,fx + alpha * step * scale)
+        step *= beta
+        fdeltaX = f(step)
+        if step <= 1e-16:
+            if f(maxStep) < fx + alpha * step * scale:
+                return maxStep, float(fdeltaX)
+            else:
+                return 1e-16, float(fdeltaX)
+        else:
+            i += 1
+
+    # print "finish searching"
+    return float(step), float(fdeltaX)

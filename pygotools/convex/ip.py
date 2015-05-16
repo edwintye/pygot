@@ -10,7 +10,7 @@ from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
 
-from .ipUtil import _findInitialBarrier, _dualityGap
+from .ipUtil import _logBarrier, _findInitialBarrier, _dualityGap, _setup
 import numpy
 
 from cvxopt.solvers import coneqp
@@ -27,22 +27,29 @@ def ip(func, grad, hessian=None, x0=None,
         disp=0, full_output=False):
 
     x = checkArrayType(x0)
-    if lb is not None or ub is not None:
-        G, h = addLBUBToInequality(lb,ub,G,h)
+    p = len(x)
+
+    # if lb is not None or ub is not None:
+    #     G, h = addLBUBToInequality(lb,ub,G,h)
+
+    # if G is not None:
+    #     G = matrix(G)
+    #     m,p = G.size
+    # else:
+    #     m = 1.0
+
+    # if h is not None:
+    #     h = matrix(h)
+
+    # if A is not None:
+    #     A = matrix(A)
+    # if b is not None:
+    #     b = matrix(b)
+    
+    z, G, h, y, A, b = _setup(lb, ub, G, h, A, b)
 
     if G is not None:
-        G = matrix(G)
-        m,p = G.size
-    else:
-        m = 1.0
-
-    if h is not None:
-        h = matrix(h)
-
-    if A is not None:
-        A = matrix(A)
-    if b is not None:
-        b = matrix(b)
+        m = G.size[0]
 
     oldFx = numpy.inf
     fx = func(x)
@@ -52,17 +59,6 @@ def ip(func, grad, hessian=None, x0=None,
     t = 0.01
     mu = 5.0
     step0 = 1.0  # back tracking search step maximum value
-
-    def logBarrier(x,func,t,G,h):
-        def F(x):
-            s = h - G * matrix(x)
-            s = numpy.array(s)
-            if numpy.any(s<=0):
-                return numpy.inf
-            else:
-                return t * func(x) - numpy.log(s).sum()
-        return F
-
 
     while abs(fx-oldFx)>=EPSILON:
 
@@ -109,7 +105,7 @@ def ip(func, grad, hessian=None, x0=None,
         deltaX = numpy.array(qpOut['x']).ravel()
         oldFx = fx
 
-        barrierFunc = logBarrier(x, func, t, G, h)
+        barrierFunc = _logBarrier(x, func, t, G, h)
 
         step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
         #step, fx = backTrackingLineSearch(step0, x, deltaX, barrierFunc, grad(x))
