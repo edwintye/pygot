@@ -12,39 +12,47 @@ def DFP(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):
         pass
     else:
-        H -= H.dot(numpy.outer(diffG,diffG)).dot(H) / (diffG.dot(H).dot(diffG))
-        H += numpy.outer(deltaX,deltaX) / diffG.dot(deltaX)
+        p = len(diffG)
+        a = diffG.dot(deltaX)
+        A = numpy.eye(p) - numpy.outer(diffG, deltaX) / a
+        #A2 = numpy.eye(p) - numpy.outer(deltaX, diffG) / a
+        # print "A1"
+        # print A1
+        # print "A2"
+        # print A2
+
+        #H += A1.dot(H).dot(A2)
+        H += A.dot(H).dot(A.T)
+        H += numpy.outer(diffG, diffG) / a
+        # print "H"
+        # print numpy.linalg.eig(H)[0]
     return H
 
 def BFGS(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):
         pass
     else:
-        p = len(diffG)
-        a = diffG.dot(deltaX)
-        A = numpy.eye(p) - numpy.outer(deltaX,diffG) / a
-        H += A.T.dot(H).dot(A)
-        H += numpy.outer(deltaX,deltaX) / a
-    return H
+        A1 = numpy.outer(diffG,diffG) / diffG.dot(deltaX)
+        a = H.dot(deltaX)
+        A2 = numpy.outer(a,a) / (deltaX.T.dot(H).dot(deltaX))
+        # print "A1"
+        # print A1
+        # print "A2"
+        # print A2
+
+    return H + A1 - A2
 
 def SR1(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):
         pass
     else:
-        a = deltaX - H.dot(diffG)
+        a = diffG - H.dot(deltaX)
         #print numpy.outer(a,a) / a.dot(diffG)
-        H += numpy.outer(a,a) / a.dot(diffG)
+        H += numpy.outer(a,a) / a.dot(deltaX)
     return H
 
 def SR1Alpha(H, diffG, deltaX):
-    if numpy.all(diffG==0) or numpy.all(deltaX==0):
-        pass
-    else:
-    # TODO: check if this is a true under estimator
-        p = len(diffG)
-        a = deltaX - H.dot(diffG)
-        #print numpy.outer(a,a) / a.dot(diffG)
-        H += numpy.outer(a,a) / a.dot(diffG)
-        e = numpy.linalg.eig(H)[0]
-        H += numpy.eye(p) * abs(min(e))
+    H = SR1(H,diffG,deltaX)
+    e = numpy.linalg.eig(H)[0]
+    H += numpy.eye(len(H)) * abs(min(e))
     return H
