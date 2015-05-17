@@ -35,12 +35,18 @@ def BFGS(H, diffG, deltaX):
         A1 = numpy.outer(diffG,diffG) / diffG.dot(deltaX)
         a = H.dot(deltaX)
         A2 = numpy.outer(a,a) / (deltaX.T.dot(H).dot(deltaX))
+        # print "diff G"
+        # print diffG
+        # print "delta X"
+        # print deltaX
+        # print "bot"
+        # print diffG.dot(deltaX)
         # print "A1"
         # print A1
         # print "A2"
         # print A2
-
-    return H + A1 - A2
+        H += A1 - A2
+    return H
 
 def SR1(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):

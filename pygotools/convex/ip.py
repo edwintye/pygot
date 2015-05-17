@@ -3,19 +3,19 @@ __all__ = [
     'ip'
     ]
 
-from pygotools.optutils.optCondition import exactLineSearch, backTrackingLineSearch, sufficientNewtonDecrement
+from pygotools.optutils.optCondition import exactLineSearch, backTrackingLineSearch, lineSearch, sufficientNewtonDecrement
 from pygotools.optutils.consMani import addLBUBToInequality
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
-
-from .ipUtil import _logBarrier, _findInitialBarrier, _dualityGap, _setup
+from .convexUtil import _logBarrier, _findInitialBarrier, _dualityGap, _setup
+from .approxH import *
 import numpy
 
-from cvxopt.solvers import coneqp
-from cvxopt import matrix, mul, div
-from cvxopt import blas
+#from cvxopt.solvers import coneqp
+from cvxopt import matrix, solvers
+solvers.options['show_progress'] = False
 
 EPSILON = 1e-6
 maxiter = 100
@@ -27,6 +27,7 @@ def ip(func, grad, hessian=None, x0=None,
         disp=0, full_output=False):
 
     x = checkArrayType(x0)
+    x = x.reshape(len(x),1)
     p = len(x)
 
     # if lb is not None or ub is not None:
@@ -49,70 +50,102 @@ def ip(func, grad, hessian=None, x0=None,
     z, G, h, y, A, b = _setup(lb, ub, G, h, A, b)
 
     if G is not None:
-        m = G.size[0]
+        m = G.shape[0]
+
+    if hessian is None:
+        approxH = BFGS
 
     oldFx = numpy.inf
     fx = func(x)
+    oldGrad = None
+    deltaX = numpy.zeros((p,1))
+    g = numpy.zeros((p,1))
+    H = numpy.zeros((p,p))
+    Haug = numpy.zeros((p,p))
 
     dispObj = Disp(disp)
     i = 0
     t = 0.01
     mu = 5.0
     step0 = 1.0  # back tracking search step maximum value
+    step = 0.0
 
     while abs(fx-oldFx)>=EPSILON:
 
+        gOrig = grad(x)
+
         if hessian is None:
-            H = forwardGradCallHessian(grad, x)
+            if oldGrad is None:
+                H = numpy.eye(len(x))
+            else:
+                diffG = numpy.array(gOrig - oldGrad).ravel()
+                H = approxH(H, diffG, step * deltaX.ravel())
         else:
             H = hessian(x)
 
-        H = t * matrix(H)
-        g = matrix(grad(x))
+        #Haug = H * t
 
         # readjust the bounds
         if A is not None:
-            bTemp = b - A * matrix(x)
+            bTemp = b - A.dot(x)
         else:
             bTemp = None
 
         ## standard log barrier
-        s = h - G * matrix(x)
-        Gs = div(G,s[:,matrix(0,(1,p))])
+        s = h - G.dot(x)
+        Gs = G/s
         s2 = s**2
 
-        H += matrix(numpy.einsum('ji,ik->jk',G.T, div(G,s2[:,matrix(0,(1,p))])))
+        Haug = t*H + numpy.einsum('ji,ik->jk',G.T, G/s2)
 
-        Dphi = matrix(0.0,(p,1))
-        blas.gemv(Gs, matrix(1.0,(m,1)),Dphi,'T')
+        #Dphi = matrix(0.0,(p,1))
+        #blas.gemv(Gs, matrix(1.0,(m,1)),Dphi,'T')
+        Dphi = Gs.sum(axis=0).reshape(p,1)
         if i==0:
-            t = _findInitialBarrier(g,Dphi,A)
-            # print "First iteration"
-            # print float(numpy.linalg.lstsq(g, -y)[0])
-            # t = float(numpy.linalg.lstsq(g, -y)[0][0][0])
+            t = _findInitialBarrier(gOrig,Dphi,A)
 
         # print type(g)
         # print type(t)
         # print type(y)
-        g = t * g + Dphi
+        g = t * gOrig + Dphi
         # print type(g)
         ## solving the QP to get the descent direction
         if A is not None:
-            qpOut = coneqp(H, g, [], [], [], A, bTemp)
+            #print 
+            #print bTemp
+            qpOut = solvers.coneqp(matrix(Haug), matrix(g), None, None, None, matrix(A), matrix(bTemp))
+            #qpOut = solvers.coneqp(matrix(Haug), matrix(g))
         else:
-            qpOut = coneqp(H, g)
+            #try:
+            qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            # except Exception as e:
+            #     print "Actual H"
+            #     print H
+            #     print "H"
+            #     print numpy.linalg.eig(H)[0]
+            #     print "H aug"
+            #     print numpy.linalg.eig(Haug)[0]
+            #     raise e
         ## exact the descent diretion and do a line search
-        deltaX = numpy.array(qpOut['x']).ravel()
+        deltaX = numpy.array(qpOut['x'])
         oldFx = fx
+        oldGrad = gOrig
 
         barrierFunc = _logBarrier(x, func, t, G, h)
 
-        step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
-        #step, fx = backTrackingLineSearch(step0, x, deltaX, barrierFunc, grad(x))
+        #step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
+        lineFunc = lineSearch(step0, x, deltaX, barrierFunc)
+        
+        step, fx = backTrackingLineSearch(step0,
+                                          lineFunc,
+                                          deltaX.ravel().dot(g.ravel()))
+
+        # print type(step)
+        # print type(fx)
         x += step * deltaX
         i += 1
         
-        s = h - G * matrix(x)
+        s = h - G.dot(x)
         # print "augmented obj: "+ str(barrierFunc(x))
         # print "obj: "+str(func(x))
         # print "t = "+str(t)
@@ -122,11 +155,12 @@ def ip(func, grad, hessian=None, x0=None,
         #print x
 
         #print qpOut
-        dispObj.d(i, x , fx, deltaX, g)
+        # print "fx"
+        dispObj.d(i, x.ravel() , fx, deltaX.ravel(), g.ravel())
         
         if m/t < EPSILON:
-        #if sufficientNewtonDecrement(deltaX,g):
-            break
+            if sufficientNewtonDecrement(deltaX.ravel(),g.ravel()):
+                break
         else:
             t *= mu
         
@@ -138,21 +172,22 @@ def ip(func, grad, hessian=None, x0=None,
         output = dict()
         output['t'] = t
 
-        y = numpy.array(qpOut['y']).ravel()/t
-        s = numpy.array(h - G * matrix(x)).ravel()
-        z = numpy.array(1.0 / (t * s))
+        y = numpy.array(qpOut['y'])/t
+        s = h - G.dot(x)
+        z = 1.0 / (t * s)
 
         gap = _dualityGap(func, x,
                           z, G, h,
                           y, A, b)
 
-        output['s'] = s
-        output['y'] = y
-        output['z'] = z
+        output['s'] = s.ravel()
+        output['y'] = y.ravel()
+        output['z'] = z.ravel()
         output['subopt'] = m/t
         output['dgap'] = gap
         output['fx'] = func(x)
-        output['H'] = numpy.array(H)
+        output['H'] = H
+        output['g'] = gOrig.ravel()
 
         return x, output
     else:
