@@ -34,7 +34,7 @@ def BFGS(H, diffG, deltaX):
     else:
         A1 = numpy.outer(diffG,diffG) / diffG.dot(deltaX)
         a = H.dot(deltaX)
-        A2 = numpy.outer(a,a) / (deltaX.T.dot(H).dot(deltaX))
+        A2 = numpy.outer(a,a) / (deltaX.T.dot(a))
         # print "diff G"
         # print diffG
         # print "delta X"

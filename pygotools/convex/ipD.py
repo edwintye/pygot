@@ -9,14 +9,13 @@ from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 from .approxH import *
-from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap
+from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
+from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc
 
 import numpy
-#import numpy.linalg
 
 import scipy.linalg, scipy.sparse
 
-#from cvxopt.solvers import coneqp
 from cvxopt import solvers
 from cvxopt import matrix, mul, div, spdiag
 from cvxopt import blas
@@ -33,9 +32,8 @@ def ipD(func, grad, hessian=None, x0=None,
         maxiter=100,
         disp=0, full_output=False):
 
-    x = checkArrayType(x0)
+    x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
-    x = x.reshape(p,1)
     g = numpy.zeros((p,1))
     gOrig = g.copy()
 
@@ -156,7 +154,12 @@ def ipD(func, grad, hessian=None, x0=None,
             RHS = numpy.append(g,-bTemp,axis=0)
             # print LHS
             # print RHS
-            deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
+            # if the total number of elements (in sparse format) is
+            # more than half total possible elements, it is a dense matrix
+            if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
+                deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
+            else:
+                deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
             deltaX = deltaTemp[:p]
             deltaY = deltaTemp[p::]
             # print LHS.todense()
@@ -255,7 +258,7 @@ def ipD(func, grad, hessian=None, x0=None,
         # print z
 
         #print qpOut
-        dispObj.d(i, x , fx, deltaX.ravel(), g.ravel(), step)
+        dispObj.d(t, x , fx, deltaX.ravel(), g.ravel(), step)
 
         feasible = False
         if G is not None:
@@ -356,20 +359,7 @@ def _deltaZFunc(x, deltaX, t, z, G, h):
     s = h - G.dot(x)
     rC = _rCentFunc(z, s, t)
     return z/s * G.dot(deltaX) + rC/-s
-    
-def _rDualFunc(x, gradFunc, z, G, y, A):
-    g = gradFunc(x)
-    if G is not None:
-        g += G.T.dot(z)
-    if A is not None:
-        g += A.T.dot(y)
-    return g
 
-def _rCentFunc(z, s, t):
-    return z*s - (1.0/t)
-
-def _rPriFunc(x, A, b):
-    return A.dot(x) - b
 
 def _maxStepSize(z, x, deltaX, t, G, h):
     deltaZ = _deltaZFunc(x, deltaX, t, z, G, h)
@@ -428,30 +418,3 @@ def residualLineSearch(step, x, deltaX,
         return scipy.linalg.norm(r)
     return F
 
-
-# def _backTrackingLineSearch(step, f, scale, alpha=0.1, beta=0.5):
-    
-#     maxStep = step
-
-#     fx = f(0.0)
-#     fdeltaX = f(step)
-
-#     i = 0
-
-#     # print "residual line search"
-#     #print (fdeltaX,fx + alpha * step * scale, step)
-#     while fdeltaX > fx + alpha * step * scale:
-#         # print "step="+str(step)
-#         # print (fdeltaX,fx + alpha * step * scale, step)
-#         step *= beta
-#         fdeltaX = f(step)
-#         # if step <= 1e-16:
-#         #     if f(maxStep) < fx + alpha * step * scale:
-#         #         return maxStep, fdeltaX
-#         #     else:
-#         #         return 1e-16, fdeltaX
-#         # else:
-#         #     i += 1
-
-#     # print "finish searching"
-#     return step, fdeltaX
