@@ -230,7 +230,7 @@ def feasibleStartingValue(G, h, allowQuasiBoundary=False, isMin=True):
         x0 = matrix(-numpy.ones(p))
     # change the type to make it suitable for cvxopt
     if type(G) is numpy.ndarray:
-        A = matrix(A)
+        G = matrix(G)
     if type(h) is numpy.ndarray:
         h = matrix(h)
 
@@ -261,17 +261,6 @@ def feasibleStartingValue(G, h, allowQuasiBoundary=False, isMin=True):
             if feasiblePoint(numpy.array(sol['x']),numpy.array(G),numpy.array(h), allowQuasiBoundary):
                 pass
             else:
-                # print A
-                # print b
-                # print sol
-                # print A * sol['x'] - b
-                # print "Solution?"
-                # print sol['x']
-                # b1 = b
-                # lapack.gels(A,b)
-                # print "LS Solution"
-                # print b[:p]
-                # print A * b[:p] - b1
                 raise Exception("Something went wrong, I have no idea")
     
         return numpy.array(sol['x'])
@@ -291,14 +280,6 @@ def _findChebyshevCenter(G, h, full_output=False):
         return numpy.array(xc).flatten(), G, h
     else:
         return numpy.array(xc).flatten()
-
-    ## If we want to check and see the difference between the center  
-    ## points obtained using a set of binding constraints and a 
-    ## solution with all the constraints.
-    # print sol['x']
-    # G = newG
-    # h = newh
-    # print solvers.cp(F)['x']
     
 def findAnalyticCenter(G, h, full_output=False):
     '''
@@ -339,16 +320,6 @@ def findAnalyticCenter(G, h, full_output=False):
     # Gx \preceq h is our general linear inequality constraints
     # where Ax \le b is our linear inequality
     # and box is our box constraints
-#     if type(G) is numpy.ndarray:
-#         G = matrix(G)
-#     if type(h) is numpy.ndarray:
-#         h = matrix(h)
-# 
-#     if G is None or h is None:
-#         raise Exception("Expecting input for G and h")
-#     else:
-#         if len(G[:,0])!=len(h):
-#             raise Exception("Number of rows in G must equal the number of values in h")
 
     ## note that the new set of G and h are the binding constraints
     bindingIndex, dualHull, G, h, x0 = bindingConstraint(G, h, None, True)
@@ -393,9 +364,7 @@ def findAnalyticCenter(G, h, full_output=False):
         sol = solvers.conelp(matrix(-numpy.ones(len(G[0,:]))),G,h)
         print sol
         print h - G*sol['x']
-        raise Exception("FUCK!")
-
-   
+        raise Exception("Problem! Unidentified yet")
 
     # this is rather confusing because part of the outputs are
     # in cvxopt matrix format while the first is in numpy.ndarray
@@ -761,23 +730,6 @@ def constraintToVertices(G, h, x0=None, full_output=False):
             # only add row if the previous linear system is of full rank
             G[i,:] = beta.ravel()
             totalRow += 1
-
-        # try:
-        #     lapack.gels(+F,y)
-        # except:
-        #     print "Error"
-        #     print numpy.array(F).shape
-        #     #print y
-        #     print numpy.linalg.matrix_rank(numpy.array(F))
-        #     beta,e,rank,s = numpy.linalg.lstsq(numpy.array(F),numpy.array(y))
-        #     print "Solve via LS"
-        #     print beta
-        #     print rank
-        #     print s
-        #     print "And the rank of D"
-        #     print numpy.linalg.matrix_rank(numpy.array(D))
-        #     #raise Exception("WTF")
-        # G[i,:] = numpy.array(y[0:numDimension]).flatten()
 
     G = G[:totalRow,:]
 

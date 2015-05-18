@@ -6,7 +6,7 @@ __all__ = [
 
 import scipy.optimize
 
-def lineSearch(t, x, deltaX, func):
+def lineSearch(step, x, deltaX, func):
     '''
     Returns a callable which will take a single
     input argument and be used as a line search function.
@@ -22,11 +22,11 @@ def lineSearch(t, x, deltaX, func):
     func:
         objective function :math:`f`
     '''
-    def F(t):
-        return func(x + t*deltaX)
+    def F(step):
+        return func(x + step*deltaX)
     return F
 
-def backTrackingLineSearch(t, func, s, alpha=0.1, beta=0.5):
+def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.5):
     '''
     Back tracking line search with t as the maximum.  Continues
     until :math:`f(t) <= f(0) + \alpha t s` where :math:`s` is
@@ -55,13 +55,14 @@ def backTrackingLineSearch(t, func, s, alpha=0.1, beta=0.5):
         f(t), which should be :math:`f(x+t\delta x)`
     '''
     fx = func(0)
-    fdeltaX = func(t)
+    fdeltaX = func(step)
 
-    while fdeltaX > fx + alpha * t * s:
-        t *= beta
-        fdeltaX = func(t)
-
-    return t, fdeltaX
+    while fdeltaX > fx + alpha * step * s:
+        step *= beta
+        fdeltaX = func(step)
+        if step <= 1e-16:
+            return step, fdeltaX
+    return step, fdeltaX
 
 def exactLineSearch(t0, func):
     res = scipy.optimize.minimize_scalar(func,bracket=(1e-8,t0))
