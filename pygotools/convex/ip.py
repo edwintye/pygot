@@ -107,7 +107,7 @@ def ip(func, grad, hessian=None, x0=None,
             # deltaX = numpy.array(qpOut['x'])
             # print "cone"
             # print qpOut['x']
-                LHS = scipy.sparse.bmat([[Haug,A.T],[A,None]])
+                LHS = scipy.sparse.bmat([[Haug,A.T],[A,None]],'csc')
                 RHS = numpy.append(g,-bTemp,axis=0)
             # print LHS.dot(numpy.append(numpy.array(qpOut['x']),numpy.array(qpOut['y']),axis=0)) + RHS
                 if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
@@ -137,12 +137,15 @@ def ip(func, grad, hessian=None, x0=None,
             oldFx = fx
             oldGrad = gOrig
 
-        #step, fx = exactLineSearch(step0, x, deltaX, barrierFunc)
             lineFunc = lineSearch(step0, x, deltaX, barrierFunc)
-        
-            step, fx = backTrackingLineSearch(step0,
-                                              lineFunc,
-                                              deltaX.ravel().dot(g.ravel()))
+            step, fx = exactLineSearch(step0, lineFunc)
+            # print step
+            # print barrierFunc(x + 0.01*deltaX)
+            # print barrierFunc(x + step0*deltaX)
+            if fx >= oldFx:
+                step, fx = backTrackingLineSearch(step0,
+                                                  lineFunc,
+                                                  deltaX.ravel().dot(g.ravel()))
 
         # print step
         # print type(fx)

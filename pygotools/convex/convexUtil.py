@@ -63,8 +63,10 @@ def _logBarrier(x, func, t, G, h):
     def F(x):
         if G is not None:
             s = h - G .dot(x)
+            #print "s"
+            #print s
             if numpy.any(s<=0):
-                return numpy.inf
+                return numpy.nan_to_num(numpy.inf)
             else:
                 return t * func(x) - numpy.log(s).sum()
         else:

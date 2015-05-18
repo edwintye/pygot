@@ -19,7 +19,9 @@ setup(name='pygotools',
       packages=[
                 'pygotools',
                 'pygotools.direct',
-                'pygotools.gradient'
+                'pygotools.gradient',
+                'pygotools.convex',
+                'pygotools.optutils'
                 ],
       license='LICENCE.txt',
       install_requires=[

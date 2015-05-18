@@ -16,7 +16,9 @@ import numpy
 import scipy.linalg
 
 from cvxopt import solvers, matrix
+
 solvers.options['show_progress'] = False
+
 
 EPSILON = 1e-6
 
@@ -108,8 +110,9 @@ def sqp(func, grad=None, hessian=None, x0=None,
 
         #step, fx = exactLineSearch(1, x, deltaX, func)
         lineFunc = lineSearch(1, x, deltaX, func)
-        #step, fx = exactLineSearch(1, lineFunc, deltaX.ravel().dot(g.ravel()))
-        step, fx = backTrackingLineSearch(1, lineFunc, deltaX.ravel().dot(g.ravel()))
+        step, fx = exactLineSearch(1, lineFunc)
+        if fx >= oldFx:
+            step, fx = backTrackingLineSearch(1, lineFunc, deltaX.ravel().dot(g.ravel()))
         #print qpOut
 
         x += step * deltaX

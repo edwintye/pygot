@@ -26,7 +26,7 @@ def lineSearch(step, x, deltaX, func):
         return func(x + step*deltaX)
     return F
 
-def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.5):
+def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
     '''
     Back tracking line search with t as the maximum.  Continues
     until :math:`f(t) <= f(0) + \alpha t s` where :math:`s` is
@@ -45,7 +45,8 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.5):
     alpha: numeric
         also known as c1 in Armijo rule
     beta: numeric
-        also known as c2 in Armijo rule
+        also known as c2 in Armijo rule.  Defaults to 0.8 which is
+        a slow search
 
     Returns
     -------
@@ -65,7 +66,10 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.5):
     return step, fdeltaX
 
 def exactLineSearch(t0, func):
-    res = scipy.optimize.minimize_scalar(func,bracket=(1e-8,t0))
+    res = scipy.optimize.minimize_scalar(func,
+                                         method='bounded',
+                                         bounds=(1e-12,t0),
+                                         options={'maxiter':100})
     #print res 
     if res['x'] >= 1.0:
         return 1.0, float(res['fun'])
