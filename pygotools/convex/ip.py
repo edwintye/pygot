@@ -11,7 +11,9 @@ from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
 from .convexUtil import _logBarrier, _findInitialBarrier, _dualityGap, _setup
 from .approxH import *
+
 import numpy
+import scipy.sparse, scipy.linalg
 
 #from cvxopt.solvers import coneqp
 from cvxopt import matrix, solvers
@@ -51,6 +53,8 @@ def ip(func, grad, hessian=None, x0=None,
 
     if G is not None:
         m = G.shape[0]
+    else:
+        m = 1
 
     if hessian is None:
         approxH = BFGS
@@ -83,41 +87,54 @@ def ip(func, grad, hessian=None, x0=None,
         else:
             H = hessian(x)
 
-        #Haug = H * t
-
-        # readjust the bounds
-        if A is not None:
-            bTemp = b - A.dot(x)
-        else:
-            bTemp = None
-
         ## standard log barrier
-        s = h - G.dot(x)
-        Gs = G/s
-        s2 = s**2
+        if G is not None:
+            s = h - G.dot(x)
+            Gs = G/s
+            s2 = s**2
 
-        Haug = t*H + numpy.einsum('ji,ik->jk',G.T, G/s2)
+            Haug = t*H + numpy.einsum('ji,ik->jk',G.T, G/s2)
+            Dphi = Gs.sum(axis=0).reshape(p,1)
+            g = t * gOrig + Dphi
+            if i==0:
+                t = _findInitialBarrier(gOrig,Dphi,A)
+        else:
+            Haug = t*H
+            g = t * gOrig
 
         #Dphi = matrix(0.0,(p,1))
         #blas.gemv(Gs, matrix(1.0,(m,1)),Dphi,'T')
-        Dphi = Gs.sum(axis=0).reshape(p,1)
-        if i==0:
-            t = _findInitialBarrier(gOrig,Dphi,A)
 
         # print type(g)
         # print type(t)
         # print type(y)
-        g = t * gOrig + Dphi
+
         # print type(g)
         ## solving the QP to get the descent direction
         if A is not None:
+        # readjust the bounds
+            bTemp = b - A.dot(x)
             #print 
             #print bTemp
-            qpOut = solvers.coneqp(matrix(Haug), matrix(g), None, None, None, matrix(A), matrix(bTemp))
-            #qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            # qpOut = solvers.coneqp(matrix(Haug), matrix(g), None, None, None, matrix(A), matrix(bTemp))
+            # deltaX = numpy.array(qpOut['x'])
+            # print "cone"
+            # print qpOut['x']
+            LHS = scipy.sparse.bmat([[Haug,A.T],[A,None]])
+            RHS = numpy.append(g,-bTemp,axis=0)
+            # print LHS.dot(numpy.append(numpy.array(qpOut['x']),numpy.array(qpOut['y']),axis=0)) + RHS
+
+            deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
+            deltaX = deltaTemp[:p]
+            # print "scipy"
+            # print deltaX
+            # print LHS.dot(deltaTemp)+RHS
+            y = deltaTemp[p::]
         else:
             #try:
-            qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            deltaX = scipy.linalg.solve(Haug,-g)
+            # qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            # deltaX = numpy.array(qpOut['x'])
             # except Exception as e:
             #     print "Actual H"
             #     print H
@@ -127,7 +144,7 @@ def ip(func, grad, hessian=None, x0=None,
             #     print numpy.linalg.eig(Haug)[0]
             #     raise e
         ## exact the descent diretion and do a line search
-        deltaX = numpy.array(qpOut['x'])
+        
         oldFx = fx
         oldGrad = gOrig
 
@@ -140,12 +157,11 @@ def ip(func, grad, hessian=None, x0=None,
                                           lineFunc,
                                           deltaX.ravel().dot(g.ravel()))
 
-        # print type(step)
+        # print step
         # print type(fx)
         x += step * deltaX
         i += 1
         
-        s = h - G.dot(x)
         # print "augmented obj: "+ str(barrierFunc(x))
         # print "obj: "+str(func(x))
         # print "t = "+str(t)
@@ -172,17 +188,21 @@ def ip(func, grad, hessian=None, x0=None,
         output = dict()
         output['t'] = t
 
-        y = numpy.array(qpOut['y'])/t
-        s = h - G.dot(x)
-        z = 1.0 / (t * s)
+
+        if G is not None:
+            s = h - G.dot(x)
+            z = 1.0 / (t * s)
+            output['s'] = s.ravel()
+            output['z'] = z.ravel()
+
+        if A is not None:
+            y = y/t
+            output['y'] = y.ravel()
 
         gap = _dualityGap(func, x,
                           z, G, h,
                           y, A, b)
-
-        output['s'] = s.ravel()
-        output['y'] = y.ravel()
-        output['z'] = z.ravel()
+        
         output['subopt'] = m/t
         output['dgap'] = gap
         output['fx'] = func(x)

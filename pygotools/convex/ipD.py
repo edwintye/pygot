@@ -12,7 +12,9 @@ from .approxH import *
 from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap
 
 import numpy
-import numpy.linalg
+#import numpy.linalg
+
+import scipy.linalg, scipy.sparse
 
 #from cvxopt.solvers import coneqp
 from cvxopt import solvers
@@ -135,47 +137,80 @@ def ipD(func, grad, hessian=None, x0=None,
             g += Dphi / t
 
         # readjust the bounds
-        if A is not None:
-            bTemp = b - A.dot(x)
-            # print g
-            # print A.T.dot(y)
-            g += A.T.dot(y)
-        else:
-            bTemp = None 
+        # if A is not None:
+
+        #     # print g
+        #     # print A.T.dot(y)
+
+        # else:
+        #     bTemp = None 
 
         #print "got here"
 
         ## solving the QP to get the descent direction
         if A is not None:
+            bTemp = b - A.dot(x)
+            g += A.T.dot(y)
             #print "here"
-            qpOut = solvers.coneqp(matrix(Haug), matrix(g),
-                                   None, None, None,
-                                   matrix(A), matrix(bTemp))
+            LHS = scipy.sparse.bmat([[Haug,A.T],[A,None]])
+            RHS = numpy.append(g,-bTemp,axis=0)
+            # print LHS
+            # print RHS
+            deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
+            deltaX = deltaTemp[:p]
+            deltaY = deltaTemp[p::]
+            # print LHS.todense()
+            # print scipy.linalg.solve(LHS.todense(),-RHS)
+            # print "y"
+            # print y
+            # print "sparse"
+            # print deltaX
+            # print deltaY
+            # print "diff"
+            # print LHS.dot(deltaTemp) + RHS
+            # qpOut = solvers.coneqp(matrix(Haug), matrix(g),
+            #                        None, None, None,
+            #                        matrix(A), matrix(bTemp))
+            # print "scipy"
+            # print deltaXS
+            # print "cone"
+            # print qpOut['x']
+            # print qpOut['y']
+            # deltaTemp[:p] = qpOut['x']
+            # deltaTemp[p::] = qpOut['y']
+            # print LHS.dot(deltaTemp) + RHS
+
+            # deltaX = numpy.array(qpOut['x'])
+            # deltaY = numpy.array(qpOut['y'])
         else:
-            try:
-                qpOut = solvers.coneqp(matrix(Haug), matrix(g))
-            except Exception as e:
-                # print "H"
-                # print H
-                # print "eigen"
-                # print numpy.linalg.eig(numpy.array(H))[0]
-                raise e
+            deltaX = scipy.linalg.solve(Haug,-g).reshape(p,1)
+            # qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            # print "scipy"
+            # print deltaX
+            # print "cone"
+            # print qpOut['x']
+
+            # try:
+            #     qpOut = solvers.coneqp(matrix(Haug), matrix(g))
+            # except Exception as e:
+            #     # print "H"
+            #     # print H
+            #     # print "eigen"
+            #     # print numpy.linalg.eig(numpy.array(H))[0]
+            #     raise e
 
         #print "got out"
         ## exact the descent diretion and do a line search
         #print qpOut
-        deltaX = numpy.array(qpOut['x'])
+        #deltaX = numpy.array(qpOut['x'])
 
         # store the information for the next iteration
         oldFx = fx
         oldGrad = gOrig.copy()
 
-        if G is not None:
-            maxStep = _maxStepSize(z, x, deltaX, t, G, h)
-        else:
-            maxStep = 1
         if G is None:
             # print "obj"
+            maxStep = 1
             barrierFunc = _logBarrier(x, func, t, G, h)
             lineFunc = lineSearch(maxStep, x, deltaX, barrierFunc)
         
@@ -185,6 +220,7 @@ def ipD(func, grad, hessian=None, x0=None,
 
         else:
             #print "resid"
+            maxStep = _maxStepSize(z, x, deltaX, t, G, h)
             residualFunc = residualLineSearch(maxStep,
                                               x, deltaX,
                                               grad, t,
@@ -198,7 +234,7 @@ def ipD(func, grad, hessian=None, x0=None,
         if z is not None:
             z += step * _deltaZFunc(x, deltaX, t, z, G, h)
         if y is not None:
-            deltaY = numpy.array(qpOut['y'])
+            # deltaY = numpy.array(qpOut['y'])
             y += step * deltaY
 
         x += step * deltaX
@@ -229,11 +265,11 @@ def ipD(func, grad, hessian=None, x0=None,
                 feasible = False
             if G is not None:
                 r = _rDualFunc(x, grad, z, G, y, A)
-                if numpy.linalg.norm(r) >= EPSILON:
+                if scipy.linalg.norm(r) >= EPSILON:
                     feasible = False
             if A is not None:
                 r = _rPriFunc(x, A, b)
-                if numpy.linalg.norm(r) >= EPSILON:
+                if scipy.linalg.norm(r) >= EPSILON:
                     feasible = False
 
             t = mu * m / eta
@@ -301,7 +337,7 @@ def ipD(func, grad, hessian=None, x0=None,
         output['dgap'] = gap
         output['fx'] = func(x)
         output['H'] = H
-        output['g'] = gOrig
+        output['g'] = gOrig.ravel()
 
         if G is not None:
             output['s'] = s.ravel()
@@ -389,7 +425,7 @@ def residualLineSearch(step, x, deltaX,
         r = numpy.append(r1,r2,axis=0)
         # print "full vector"
         # print r
-        return numpy.linalg.norm(r)
+        return scipy.linalg.norm(r)
     return F
 
 
