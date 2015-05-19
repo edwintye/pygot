@@ -15,10 +15,12 @@ from .convexUtil import _setup, _checkInitialValue
 import numpy
 import scipy.linalg
 
-from cvxopt import solvers, matrix
+#from cvxopt import solvers, matrix
 
+from cvxopt.solvers import coneqp
+from cvxopt import matrix
+from cvxopt import solvers
 solvers.options['show_progress'] = False
-
 
 EPSILON = 1e-6
 
@@ -88,12 +90,12 @@ def sqp(func, grad=None, hessian=None, x0=None,
         # solving the QP to get the descent direction
         try:
             if A is not None:
-                qpOut = solvers.coneqp(matrix(H), matrix(g), matrix(G), matrix(hTemp), dims, matrix(A), matrix(bTemp))
+                qpOut = coneqp(matrix(H), matrix(g), matrix(G), matrix(hTemp), dims, matrix(A), matrix(bTemp))
             else:
                 if G is not None:
-                    qpOut = solvers.coneqp(matrix(H), matrix(g), matrix(G), matrix(hTemp), dims)
+                    qpOut = coneqp(matrix(H), matrix(g), matrix(G), matrix(hTemp), dims)
                 else:
-                    qpOut = solvers.coneqp(matrix(H), matrix(g))
+                    qpOut = coneqp(matrix(H), matrix(g))
         except Exception as e:
             #print "H"
             #print H
