@@ -3,11 +3,8 @@ __all__ = [
     'ip'
     ]
 
-
 from .ipBar import ipBar
-from .ipPD import ipPD
-from .ipPDC import ipPDC
-
+from .ipPD2 import ipPD2
 
 def ip(func, grad, hessian=None, x0=None,
        lb=None, ub=None,
@@ -27,16 +24,18 @@ def ip(func, grad, hessian=None, x0=None,
                      maxiter,
                      disp, full_output)
     elif method=='pd':
-        return ipPD(func, grad, hessian, x0,
+        return ipPD2(func, grad, hessian, x0,
                      lb, ub,
                      G, h,
                      A, b,
                      maxiter,
-                     disp, full_output)
+                     method='pd',
+                     disp=disp, full_output=full_output)
     elif method=='pdc':
-        return ipPDC(func, grad, hessian, x0,
+        return ipPD2(func, grad, hessian, x0,
                      lb, ub,
                      G, h,
                      A, b,
                      maxiter,
-                     disp, full_output)
+                     method='pdc',
+                     disp=disp, full_output=full_output)

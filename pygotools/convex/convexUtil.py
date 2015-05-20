@@ -61,6 +61,8 @@ def _checkInitialValue(x0, G, h, A, b):
 
 def _logBarrier(x, func, t, G, h):
     def F(x):
+        p = len(x)
+        x = x.reshape(p,1)
         if G is not None:
             s = h - G .dot(x)
             #print "s"
@@ -71,6 +73,21 @@ def _logBarrier(x, func, t, G, h):
                 return t * func(x) - numpy.log(s).sum()
         else:
             return t * func(x)
+    return F
+
+def _logBarrierGrad(x, func, gOrig, t, G, h):
+    def F(x):
+        p = len(x)
+        x = x.reshape(p,1)
+        
+        if G is not None:
+            s = h - G.dot(x)
+            Gs = G/s
+            Dphi = Gs.sum(axis=0).reshape(p,1)
+            g = t * gOrig + Dphi
+        else:
+            g = t * gOrig
+        return g.ravel()
     return F
 
 def _findInitialBarrier(g,y,A):

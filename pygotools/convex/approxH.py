@@ -2,8 +2,7 @@
 __all__ = [
     'DFP',
     'BFGS',
-    'SR1',
-    'SR1Alpha'
+    'SR1'
     ]
 
 import numpy
@@ -49,16 +48,13 @@ def BFGS(H, diffG, deltaX):
     return H
 
 def SR1(H, diffG, deltaX):
-    if numpy.all(diffG==0) or numpy.all(deltaX==0):
+    a = diffG - H.dot(deltaX)
+    LHS = abs(deltaX.dot(a))
+    RHS = 1e-8 * scipy.linalg.norm(diffX) * scipy.linalg.norm(a) 
+    if LHS < RHS:
         pass
     else:
-        a = diffG - H.dot(deltaX)
         #print numpy.outer(a,a) / a.dot(diffG)
         H += numpy.outer(a,a) / a.dot(deltaX)
     return H
 
-def SR1Alpha(H, diffG, deltaX):
-    H = SR1(H,diffG,deltaX)
-    e = numpy.linalg.eig(H)[0]
-    H += numpy.eye(len(H)) * abs(min(e))
-    return H

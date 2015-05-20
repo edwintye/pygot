@@ -3,12 +3,12 @@ __all__ = [
     'ipBar'
     ]
 
-from pygotools.optutils.optCondition import exactLineSearch2, lineSearch, sufficientNewtonDecrement
+from pygotools.optutils.optCondition import backTrackingLineSearch, exactLineSearch2, lineSearch, sufficientNewtonDecrement
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian
 
-from .convexUtil import _logBarrier, _findInitialBarrier, _dualityGap, _setup, _rDualFunc, _checkInitialValue
+from .convexUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _setup, _rDualFunc, _checkInitialValue
 from .approxH import *
 
 import numpy
@@ -38,8 +38,6 @@ def ipBar(func, grad, hessian=None, x0=None,
             approxH = BFGS
         elif hessian.lower()=='sr1':
             approxH = SR1
-        elif hessian.lower()=='sr1alpha':
-            approxH = SR1Alpha
         elif hessian.lower()=='dfp':
             approxH = DFP
         else:
@@ -57,8 +55,9 @@ def ipBar(func, grad, hessian=None, x0=None,
     else:
         m = 1
 
-    oldFx = numpy.inf
-    fx = func(x)
+    fx = None
+    oldFx = None
+    oldOldFx = None 
     oldGrad = None
     deltaX = numpy.zeros((p,1))
     g = numpy.zeros((p,1))
@@ -78,6 +77,10 @@ def ipBar(func, grad, hessian=None, x0=None,
         # define the barrier function given t.  Note that
         # t is adjusted at each outer iteration
         barrierFunc = _logBarrier(x, func, t, G, h)
+        if j==0:
+            fx = barrierFunc(x)
+            #print "barrier = " +str(fx)
+            
         while abs(fx-oldFx)>=EPSILON:
             gOrig = grad(x).reshape(p,1)
 
@@ -109,9 +112,10 @@ def ipBar(func, grad, hessian=None, x0=None,
             if A is not None:
                 # re-adjust the bounds
                 bTemp = b - A.dot(x)
-                LHS = scipy.sparse.bmat([ [Haug,A.T],
-                                          [A,None] ],
-                                        'csc')
+                LHS = scipy.sparse.bmat([
+                                         [Haug,A.T],
+                                         [A,None]
+                                         ], 'csc')
                 RHS = numpy.append(g,-bTemp,axis=0)
                 if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
                     deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
@@ -123,13 +127,35 @@ def ipBar(func, grad, hessian=None, x0=None,
             else:
                 deltaX = scipy.linalg.solve(Haug,-g)
 
+            oldOldFxTemp = oldFx
             oldFx = fx
             oldGrad = gOrig
 
             lineFunc = lineSearch(step0, x, deltaX, barrierFunc)
-            step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-
+            #step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+            
+            barrierGrad = _logBarrierGrad(x, func, gOrig, t, G, h)
+            step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(barrierFunc,
+                                                                            barrierGrad,
+                                                                            x.ravel(),
+                                                                            deltaX.ravel(),
+                                                                            g.ravel(),
+                                                                            oldFx,
+                                                                            oldOldFx
+                                                                            )
+            
+            # if step is not None:
+                # print "step = "+str(step)+ " with fx" +str(fx)+ " and barrier = " +str(barrierFunc(x + step * deltaX))
+                # print "s"
+                # print h - G.dot(x + step * deltaX)
+            if step is None:
+                # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+                step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+                #print "fail wolfe - " +str(step)
+                
+            oldOldFx = oldOldFxTemp
             x += step * deltaX
+            # print "stepped func = "+str(func(x))
             j += 1
             dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel())
             # end of inner iteration

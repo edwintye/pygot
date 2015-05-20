@@ -10,6 +10,7 @@ from .ip import *
 from .ipBar import *
 from .ipPD import *
 from .ipPDC import *
+from .ipPD2 import *
 from .approxH import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]

@@ -41,8 +41,6 @@ def ipPD(func, grad, hessian=None, x0=None,
             approxH = BFGS
         elif hessian.lower()=='sr1':
             approxH = SR1
-        elif hessian.lower()=='sr1alpha':
-            approxH = SR1Alpha
         elif hessian.lower()=='dfp':
             approxH = DFP
         else:
