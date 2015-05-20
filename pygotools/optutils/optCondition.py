@@ -6,6 +6,7 @@ __all__ = [
 ]
 
 import scipy.optimize
+import numpy
 
 def lineSearch(step, x, deltaX, func):
     '''
@@ -22,9 +23,15 @@ def lineSearch(step, x, deltaX, func):
         descent direction
     func:
         objective function :math:`f`
+    
+    Returns
+    -------
+    F: callable
+        takes input step size :math:`\delta x` and returns
+        the objective function :math:`f(x + step \delta x)`
     '''
     def F(step):
-        return func(x + step*deltaX)
+        return func(x + step * deltaX)
     return F
 
 def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
@@ -46,8 +53,7 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
     alpha: numeric
         also known as c1 in Armijo rule
     beta: numeric
-        also known as c2 in Armijo rule.  Defaults to 0.8 which is
-        a slow search
+        amount of decrease if search fails
 
     Returns
     -------
@@ -58,8 +64,9 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
     '''
     fx = func(0)
     fdeltaX = func(step)
-
+    # print "LHS = "+str(fdeltaX)+ " and RHS = " +str(fx + alpha * step * s)
     while fdeltaX > fx + alpha * step * s:
+        # print "LHS = "+str(fdeltaX)+ " and RHS = " +str(fx + alpha * step * s)
         step *= beta
         fdeltaX = func(step)
         if step <= 1e-16:
@@ -85,15 +92,15 @@ def exactLineSearch(stepMax, func):
     fx: float
         f(x) evaluated at the output step size
     '''
-    res = scipy.optimize.minimize_scalar(func,
-                                         method='bounded',
-                                         bounds=(1e-12,stepMax),
-                                         options={'maxiter':100})
+    try:
+        res = scipy.optimize.minimize_scalar(func,
+                                         method='brent',
+                                         bracket=(1e-12,stepMax),
+                                         options={'maxiter':20})
     #print res 
-    if res['x'] >= 1.0:
-        return 1.0, float(res['fun'])
-    else:
         return float(res['x']), float(res['fun'])
+    except Exception:
+        return 2.0, numpy.inf
 
 def exactLineSearch2(stepMax, func, searchScale, oldFx):
     '''
@@ -121,11 +128,18 @@ def exactLineSearch2(stepMax, func, searchScale, oldFx):
     '''    
 
     step, fx = exactLineSearch(stepMax, func)
-    if step>=stepMax or step<=1e-15 or fx>oldFx:
+    # print "fx = "+str(fx)
+    # print "oldFx = "+str(oldFx)
+    # print "step = " +str(step)
+    if step>=stepMax or step<=1e-15 or fx>=oldFx:
+        # print "back track"
+        # print "with search scale"+str(searchScale)
         step, fx = backTrackingLineSearch(stepMax,
                                           func,
                                           searchScale)
-
+        # print "fx = "+str(fx)
+        # print "step = " +str(step)
+    
     return step, fx
 
 def sufficientNewtonDecrement(deltaX, grad):

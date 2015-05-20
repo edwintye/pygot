@@ -58,7 +58,7 @@ res = minimize(rosen, theta,
                options={'xtol': 1e-8, 'disp': True})
 
 
-from pygotools.convex import sqp,ip,ipD, ipPD
+from pygotools.convex import sqp, ip, ipPDC, ipPD, ipBar
 
 ## sqp
 
@@ -78,7 +78,7 @@ xhat, output = sqp(rosen,
                    A=A, b=b,
                    disp=4, full_output=True)
 
-## interior point barrier
+## interior point interface
 
 xhat, output = ip(rosen,
                   rosen_der,
@@ -86,10 +86,44 @@ xhat, output = ip(rosen,
                   lb=None, ub=None,
                   G=None, h=None,
                   A=None, b=None,
-                  disp=3, full_output=True)
+                  method='pdc',
+                  disp=5, full_output=True)
 
 
 xhat, output = ip(rosen,
+                  rosen_der,
+                  x0=theta,
+                  lb=lb, ub=ub,
+                  G=None, h=None,
+                  A=None, b=None,
+                  maxiter=300,
+                  method='pd',
+                  disp=5, full_output=True)
+
+
+xhat, output = ip(rosen,
+                  rosen_der,
+                  x0=theta,
+                  lb=lb, ub=ub,
+                  G=None, h=None,
+                  A=A, b=b,
+                  method='pdc',
+                  disp=3, full_output=True)
+
+
+## interior point barrier
+
+
+xhat, output = ipBar(rosen,
+                     rosen_der,
+                     x0=theta,
+                     lb=None, ub=None,
+                     G=None, h=None,
+                     A=None, b=None,
+                     disp=3, full_output=True)
+
+
+xhat, output = ipBar(rosen,
                   rosen_der,
                   x0=theta,
                   lb=lb, ub=ub,
@@ -99,7 +133,7 @@ xhat, output = ip(rosen,
                   disp=3, full_output=True)
 
 
-xhat, output = ip(rosen,
+xhat, output = ipBar(rosen,
                   rosen_der,
                   x0=theta,
                   lb=lb, ub=ub,
@@ -108,28 +142,28 @@ xhat, output = ip(rosen,
                   disp=3, full_output=True)
 
 
-## interior point primal dual
 
+## interior point primal dual with central path
 
-xhat, output = ipD(rosen,
-                   rosen_der,
-                   x0=theta,
-                   lb=None, ub=None,
-                   G=None, h=None,
-                   A=None, b=None,
-                   maxiter=30,
-                   disp=5, full_output=True)
+xhat, output = ipPDC(rosen,
+                     rosen_der,
+                     x0=theta,
+                     lb=None, ub=None,
+                     G=None, h=None,
+                     A=None, b=None,
+                     maxiter=100,
+                     disp=5, full_output=True)
 
-xhat, output = ipD(rosen,
-                   rosen_der,
-                   x0=theta,
-                   lb=lb, ub=ub,
-                   G=None, h=None,
-                   A=None, b=None,
-                   maxiter=100,
-                   disp=5, full_output=True)
+xhat, output = ipPDC(rosen,
+                     rosen_der,
+                     x0=theta,
+                     lb=lb, ub=ub,
+                     G=None, h=None,
+                     A=None, b=None,
+                     maxiter=1000,
+                     disp=5, full_output=True)
 
-xhat, output = ipD(rosen,
+xhat, output = ipPDC(rosen,
                    rosen_der,
                    x0=theta,
                    lb=lb, ub=ub,
@@ -155,7 +189,7 @@ xhat, output = ipPD(rosen,
                    lb=lb, ub=ub,
                    G=None, h=None,
                    A=None, b=None,
-                   maxiter=100,
+                   maxiter=1000,
                    disp=5, full_output=True)
 
 xhatA, outputA = ipPD(rosen,
@@ -168,41 +202,3 @@ xhatA, outputA = ipPD(rosen,
                    disp=5, full_output=True)
 
  
-
-f = lambda x: (abs(x-5)).sum()
-
-theta = 8*cos(arange(N))
-
-g = lambda x: sign(x-5)
-
-lb = 5*ones(N) + sin(arange(N)) - 0.1
-ub = 5*ones(N) + sin(arange(N)) + 0.1
-lb[:N/4] = -inf
-ub[3*N/4:] = inf
-
-
-res = minimize(f, theta,
-               method='L-BFGS-B',
-               bounds=numpy.reshape(numpy.append(lb,ub),(N,2),'F'),
-               jac=g,
-               options={'xtol': 1e-8, 'disp': True})
-
-xhat, output = sqp(f,
-                   g,
-                   x0=theta,
-                   lb=lb, ub=ub,
-                   disp=4, full_output=True)
-
-xhat, output = ip(f,
-                  g,
-                  x0=theta,
-                  lb=lb, ub=ub,
-                  disp=2, full_output=True)
-
-xhat, output = ipD(rosen,
-                   rosen_der,
-                   x0=theta,
-                   lb=lb, ub=ub,
-                   maxiter=30,
-                   disp=2, full_output=True)
-

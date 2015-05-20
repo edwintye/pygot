@@ -151,13 +151,13 @@ def ipBar(func, grad, hessian=None, x0=None,
             if step is None:
                 # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
                 step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-                #print "fail wolfe - " +str(step)
+                print "fail wolfe = " +str(step)
                 
             oldOldFx = oldOldFxTemp
             x += step * deltaX
             # print "stepped func = "+str(func(x))
             j += 1
-            dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel())
+            dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel(), step)
             # end of inner iteration
         i += 1
         # obtain the missing Lagrangian multiplier
