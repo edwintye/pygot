@@ -131,7 +131,7 @@ def exactLineSearch2(stepMax, func, searchScale, oldFx):
     # print "fx = "+str(fx)
     # print "oldFx = "+str(oldFx)
     # print "step = " +str(step)
-    if step>=stepMax or step<=1e-15 or fx>=oldFx:
+    if step>stepMax or step<=1e-15 or fx>=oldFx:
         # print "back track"
         # print "with search scale"+str(searchScale)
         step, fx = backTrackingLineSearch(stepMax,
@@ -139,7 +139,6 @@ def exactLineSearch2(stepMax, func, searchScale, oldFx):
                                           searchScale)
         # print "fx = "+str(fx)
         # print "step = " +str(step)
-    
     return step, fx
 
 def sufficientNewtonDecrement(deltaX, grad):

@@ -46,6 +46,7 @@ def ipPD2(func, grad, hessian=None, x0=None,
             approxH = DFP
         else:
             raise Exception("Input name of hessian is not recognizable")
+        hessian = None
 
     if grad is None:
         def finiteForward(x,func,p):

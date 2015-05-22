@@ -6,6 +6,7 @@ __all__ = [
     ]
 
 import numpy
+import scipy.linalg
 
 def DFP(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):
@@ -50,7 +51,7 @@ def BFGS(H, diffG, deltaX):
 def SR1(H, diffG, deltaX):
     a = diffG - H.dot(deltaX)
     LHS = abs(deltaX.dot(a))
-    RHS = 1e-8 * scipy.linalg.norm(diffX) * scipy.linalg.norm(a) 
+    RHS = 1e-8 * scipy.linalg.norm(deltaX) * scipy.linalg.norm(a) 
     if LHS < RHS:
         pass
     else:

@@ -12,6 +12,7 @@ from .ipPD import *
 from .ipPDC import *
 from .ipPD2 import *
 from .approxH import *
+from .trust import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]
 from numpy.testing import Tester

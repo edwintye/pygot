@@ -4,7 +4,7 @@
 from pygom import OperateOdeModel, common_models, odeutils, SquareLoss
 import numpy
 import matplotlib.pyplot 
-
+import scipy.optimize
 
 x0 = [-1.0,1.0]
 t0 = 0
@@ -21,6 +21,14 @@ theta = [0.5,0.5,0.5]
 
 objFH = SquareLoss(theta,ode,x0,t0,t,solution[1::,:],['V','R'])
 
+res = scipy.optimize.minimize(fun=objFH.cost,
+                              jac=objFH.sensitivity,
+                              hess=objFH.jtj,
+                              x0 = theta,
+                              method = 'dogleg',
+                              options = {'disp':True},
+                              callback=objFH.thetaCallBack)
+
 boxBounds = [
     (1e-4,5.0),
     (1e-4,5.0),
@@ -30,7 +38,29 @@ boxBoundsArray = numpy.array(boxBounds)
 lb = boxBoundsArray[:,0]
 ub = boxBoundsArray[:,1]
 
-from pygotools.convex import sqp,ip,ipPDC, ipPD, ipBar
+from pygotools.convex import sqp,ip,ipPDC, ipPD, ipBar, trustRegion
+
+## trust
+xhat, output = trustRegion(objFH.cost, objFH.gradient, hessian=objFH.jtj,
+                x0=theta,
+                maxiter=100,
+                method='exact',
+                disp=3, full_output=True)
+
+xhat, output = trustRegion(objFH.cost, objFH.gradient, hessian=objFH.hessian,
+                x0=theta,
+                maxiter=100,
+                method='exact',
+                disp=3, full_output=True)
+
+
+xhatA, outputA = trustRegion(objFH.cost, objFH.gradient, hessian='SR1',
+                x0=theta,
+                maxiter=100,
+                method='exact',
+                disp=3, full_output=True)
+
+
 
 ## sqp
 
@@ -53,7 +83,7 @@ xhat, output = ip(objFH.cost,
                   lb=None, ub=None,
                   G=None, h=None,
                   A=None, b=None,
-                  method='pdc',
+                  method='bar',
                   disp=3, full_output=True)
 
 
@@ -120,9 +150,11 @@ xhat, output = ip(objFH.cost,
 
 
 x = numpy.array(theta)
+p = len(theta)
 oldFx = objFH.cost(x)
 g = objFH.gradient(x)
-deltaX = numpy.linalg.solve(objFH.jtj(x),-g)
+H = objFH.jtj(x)
+deltaX = numpy.linalg.solve(H,-g)
 objFH.cost(x + deltaX)
 
 step, fc, gc, fx, old_fval, new_slope = scipy.optimize.line_search(objFH.cost,
@@ -138,7 +170,114 @@ numpy.array(x) + step * deltaX
 
 scipy.linalg.norm(deltaX)
 
-
 radius = 1.0
 
+if scipy.linalg.norm(deltaX)>=radius:
+    tau = 1.0
+    deltaX = numpy.linalg.solve(objFH.jtj(x)+tau*numpy.eye(p),-g)
+    scipy.linalg.norm(deltaX)
+
+
+def phi(tau,H,g,p,radius):
+    def F(tau):
+        deltaX = numpy.linalg.solve(H + tau*numpy.eye(p), -g)
+        return 1.0/radius - 1.0/scipy.linalg.norm(deltaX)
+    return F
+
+
+
+f = phi(0.0,objFH.jtj(x),g,p,radius)
+f(1.0)
+
+sol = scipy.optimize.root(f,0.0)
+
+# simplistic version
+
+tau = 0.0
+diffTau = 1.0
+
+for i in range(5):
+    newTau = tau + diffTau
+    fx = f(tau)
+
+    oldFx = fx
+    fx = f(newTau)
+    tau = newTau
+
+    diffTau = -(fx * diffTau)/(fx - oldFx)
+    print "tau = " +str(newTau) + " with f(x) = " +str(fx)
+
+
+# more complicated version
+
+tau = 0.0
+for i in range(8):
+    R = scipy.linalg.cholesky(H + tau*numpy.eye(p))
+    #scipy.linalg.solve(H + tau*numpy.eye(p),-g)
+    pk = scipy.linalg.solve_triangular(R,-g,trans='T')
+    pk = scipy.linalg.solve_triangular(R,pk,trans='N')
+    qk = scipy.linalg.solve_triangular(R,pk,trans='T')
+    a = scipy.linalg.norm(pk)
+    tau += (a/scipy.linalg.norm(qk))**2  * (a - radius) / radius
+    print "tau = " +str(tau) + " with f(x) = " +str(f(tau))
+
+
+scipy.linalg.norm(scipy.linalg.solve(H+tau*numpy.eye(p),-g))
+
+scipy.linalg.cholesky(H + -min(scipy.linalg.eig(H)[0])*numpy.eye(p))
+
+
+from pygotools.convex import trustExact
+
+
+x = numpy.array(theta)
+p = len(theta)
+oldFx = objFH.cost(x)
+g = objFH.gradient(x)
+H = objFH.jtj(x)
+deltaX = numpy.linalg.solve(H,-g)
+objFH.cost(x + deltaX)
+
+
+
+x = numpy.array(theta)
+p = len(theta)
+radius = 1.0
+
+func = objFH.cost
+grad = objFH.gradient
+hessian = objFH.jtj
+
+def diffM(deltaX, g, H):
+    def M(deltaX):
+        m = -g.dot(deltaX) - 0.5 * deltaX.dot(H).dot(deltaX)
+        return m
+    return M
+
+for i in range(100):
+    
+    g = grad(x)
+    H = hessian(x)
+    fx = func(x)
+
+    deltaX, tau = trustExact(x, g, H, radius)
+    M = diffM(deltaX, g, H)
+    
+    newFx = func(x + deltaX)
+    predRatio = (fx - newFx) / M(deltaX)
+    
+    if predRatio>=0.75:
+        if tau>0.0:
+            radius = min(2.0*radius, 1)
+    elif predRatio<=0.25:
+        radius *= 0.25
+    
+    if predRatio>=0.25:
+        x += deltaX
+        print "x = " +str(x)
+        fx = newFx
+
+    print "tau = " +str(tau) + " with f(x) = " +str(func(x))+ " and m(x) "+str(M(deltaX))
+    print "radius = "+str(radius)+ " ratio = " +str(predRatio)
+    print ""
 

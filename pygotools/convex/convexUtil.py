@@ -70,9 +70,9 @@ def _logBarrier(x, func, t, G, h):
             if numpy.any(s<=0):
                 return numpy.nan_to_num(numpy.inf)
             else:
-                return t * func(x) - numpy.log(s).sum()
+                return func(x) - numpy.log(s).sum()/t
         else:
-            return t * func(x)
+            return func(x)
     return F
 
 def _logBarrierGrad(x, func, gOrig, t, G, h):
@@ -84,9 +84,9 @@ def _logBarrierGrad(x, func, gOrig, t, G, h):
             s = h - G.dot(x)
             Gs = G/s
             Dphi = Gs.sum(axis=0).reshape(p,1)
-            g = t * gOrig + Dphi
+            g = gOrig + Dphi/t
         else:
-            g = t * gOrig
+            g = gOrig
         return g.ravel()
     return F
 
