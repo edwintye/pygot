@@ -7,7 +7,7 @@ from pygotools.optutils.optCondition import lineSearch, exactLineSearch2,exactLi
 
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
-from pygotools.gradient.finiteDifference import forwardGradCallHessian
+from pygotools.gradient.finiteDifference import forward, forwardGradCallHessian
 from .approxH import *
 from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
 from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc

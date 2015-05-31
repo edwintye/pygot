@@ -4,11 +4,11 @@ __all__ = [
     'trustExact'
     ]
 
-
 from .convexUtil import _checkInitialValue
 from .approxH import *
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
+from pygotools.gradient.finiteDifference import forward
 
 import numpy
 import scipy
@@ -24,6 +24,7 @@ def trustRegion(func, grad, hessian=None, x0=None,
                 disp=0, full_output=False):
 
     x = checkArrayType(x0)
+    p = len(x)
 
     if grad is None:
         def finiteForward(x,func,p):
@@ -55,6 +56,7 @@ def trustRegion(func, grad, hessian=None, x0=None,
 
     fx = None
     oldGrad = None
+    deltaX = None
     oldFx = numpy.inf
     i = 0
     oldi = -1
@@ -140,6 +142,58 @@ def trustExact(x, g, H, radius=1.0, maxiter=10):
     e1 = min(e)
     if e1<0:
         tau = -e1+EPSILON
+
+    for i in range(maxiter):
+        try:
+            R = scipy.linalg.cholesky(H + tau*scipy.eye(p))
+        except:
+            print "tau = "+str(tau)
+            print scipy.linalg.eig(H + tau*scipy.eye(p))[0]
+            raise Exception('shit')
+        # scipy.linalg.solve(H + tau*numpy.eye(p),-g)
+        pk = scipy.linalg.solve_triangular(R, -g, trans='T')
+        pk = scipy.linalg.solve_triangular(R, pk, trans='N')
+        
+        a = scipy.linalg.norm(pk)
+        if i==0:
+            fx = 1.0/radius - 1.0/a
+            if a<=radius:
+                return pk, tau
+        else:
+            oldFx = fx
+            fx = 1.0/radius - 1.0/a
+            if fx<=0.0 or abs(oldFx-fx)<=0.1:
+                # we are goint to force another iteration anyway just to refine
+                # it because we have
+                qk = scipy.linalg.solve_triangular(R, pk, trans='T')
+                tau += (a/scipy.linalg.norm(qk))**2  * (a - radius) / radius
+                return pk, tau
+
+        qk = scipy.linalg.solve_triangular(R, pk, trans='T')
+        tau += (a/scipy.linalg.norm(qk))**2  * (a - radius) / radius
+        # print "tau = "+str(tau) + " phi2 = " +str(fx)+ " with e1 = "+str(e1)
+        # print pk
+    
+    return  pk, tau
+
+def trustSubspace(x, g, H, radius=1.0, maxiter=10):
+    # we use tau as the size of our regularization because
+    # lambda is a reserved keyword
+    tau = 0
+    p = len(x)
+
+    e = scipy.linalg.eig(H)[0]
+    e1 = min(e)
+    if e1<0:
+        tau = -e1+EPSILON
+
+    R = scipy.linalg.cholesky(H + tau*scipy.eye(p))
+    pS1 = scipy.linalg.solve_triangular(R, -g, trans='T')
+    pS1 = scipy.linalg.solve_triangular(R, pS1, trans='N')
+    
+    pS2 = -g.copy()
+    rhs = numpy.append(pS1,pS2,axis=0)
+        
 
     for i in range(maxiter):
         try:

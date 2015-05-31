@@ -47,6 +47,13 @@ res = minimize(rosen, theta, method='Newton-CG',
                jac=rosen_der, hess=rosen_hess,
                options={'xtol': 1e-8, 'disp': True})
 
+res = minimize(rosen, theta, method='trust-ncg',
+               jac=rosen_der, hess=rosen_hess,
+               options={'xtol': 1e-8})
+
+res = minimize(rosen, theta, method='dogleg',
+               jac=rosen_der, hess=rosen_hess)
+
 res = minimize(rosen, theta, method='BFGS',
                jac=rosen_der,
                options={'xtol': 1e-8, 'disp': True})
@@ -62,13 +69,24 @@ from pygotools.convex import sqp, ip, ipPDC, ipPD, ipBar
 
 ## sqp
 
+
+xhat, output = sqp(rosen,
+                   rosen_der,
+                   x0=theta,
+                   maxiter=100,
+                   method='trust',
+                   disp=5, full_output=True)
+
+
 xhat, output = sqp(rosen,
                    rosen_der,
                    x0=theta,
                    lb=lb, ub=ub,
                    G=None, h=None,
                    A=None, b=None,
-                   disp=4, full_output=True)
+                   maxiter=100,
+                   method='trust',
+                   disp=5, full_output=True)
 
 xhat, output = sqp(rosen,
                    rosen_der,
@@ -76,7 +94,18 @@ xhat, output = sqp(rosen,
                    lb=lb, ub=ub,
                    G=None, h=None,
                    A=A, b=b,
-                   disp=4, full_output=True)
+                   method='trust',
+                   disp=3, full_output=True)
+
+xhat, output = sqp(rosen,
+                   rosen_der,
+                   x0=theta,
+                   lb=None, ub=None,
+                   G=None, h=None,
+                   A=A, b=b,
+                   method='line',
+                   disp=5, full_output=True)
+
 
 ## interior point interface
 
@@ -202,3 +231,104 @@ xhatA, outputA = ipPD(rosen,
                    disp=5, full_output=True)
 
  
+#
+from pygotools.convex import trustRegion, trustExact
+
+## trust
+xhat, output = trustRegion(rosen,
+                           rosen_der,
+                           rosen_hess,
+                           x0=theta,
+                           maxiter=100,
+                           method='exact',
+                           disp=3, full_output=True)
+
+xhat, output = trustRegion(rosen,rosen_der,
+                           hessian='BFGS',
+                           x0=theta,
+                           maxiter=100,
+                           method='exact',
+                           disp=3, full_output=True)
+
+
+xhatA, outputA = trustRegion(rosen,rosen_der,
+                             hessian='SR1',
+                             x0=theta,
+                             maxiter=100,
+                             method='exact',
+                             disp=3, full_output=True)
+
+
+## test subspace
+theta = np.array([1.3, 0.7, 0.8, 1.9, 1.2])
+radius = 0.5
+
+for i in range(10):
+    g = rosen_der(theta)
+    H = rosen_hess(theta)
+    # trustExact(theta, g, H, radius=1.0, maxiter=10)
+
+    # g.T.dot(g)/(g.T.dot(H).dot(g.T)) * g
+
+    e = scipy.linalg.eig(H)[0]
+    tau = 1.5 * abs(min(e)) 
+    Haug = H + tau*scipy.eye(len(theta))
+
+    R = scipy.linalg.cholesky(Haug)
+    pFS = scipy.linalg.solve_triangular(R, -g, trans='T')
+    pFS = scipy.linalg.solve_triangular(R, pFS, trans='N')
+    
+    if scipy.linalg.norm(pFS)<=radius:
+        theta += pFS
+        print 1
+    else:
+    
+        # pU = -g
+        pU = g.T.dot(g)/(g.T.dot(H).dot(g)) * -g
+        pU = -g
+
+        lhs = scipy.sparse.bmat([
+            [pU.T.dot(Haug).dot(pU), pU.T.dot(Haug).dot(pFS)],
+            [pFS.T.dot(Haug).dot(pU), pFS.T.dot(Haug).dot(pFS)]
+        ])
+
+        rhs = numpy.append(pU.T.dot(g),pFS.T.dot(g))
+        eta = scipy.linalg.solve(lhs.todense(),-rhs)
+
+        pBar = eta[0] * pU + eta[1] * pFS
+        pBar = 1.0 * pU + 0.0 * pFS
+        scipy.linalg.norm(pBar)
+    
+        if scipy.linalg.norm(pBar)<=radius:
+            theta += pBar
+            print 2
+        else:
+            theta += radius * pU/scipy.linalg.norm(pU)
+            print 3
+
+    print theta
+
+
+scipy.linalg.norm(pBar)
+
+eta[0] = 1.0 / scipy.linalg.norm(pU)
+eta[1] = 1.0 / scipy.linalg.norm(pFS)
+
+eta[0]**2 * scipy.linalg.norm(pU)**2 
+eta[1]**2 * scipy.linalg.norm(pFS)**2 
+
+
+e,V = scipy.linalg.eig(H)
+
+V.dot(numpy.diag(e)).dot(V.T)
+
+V[:,3].dot(H).dot(V[:,3])/numpy.inner(V[:,3],V[:,3])
+
+V[:,3].T.dot(pFS)
+
+
+
+v = -pU/scipy.linalg.norm(pU)
+v.T.dot(H).dot(v) / (v.T.dot(v))
+
+

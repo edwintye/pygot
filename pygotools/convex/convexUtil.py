@@ -23,14 +23,14 @@ def _setup(lb=None, ub=None,
 
     if G is not None:
         m,p = G.shape
-        z = numpy.zeros((m,1))
+        z = numpy.ones((m,1))
         h = h.reshape(len(h),1)
     else:
         m = 1.0
         z = None
 
     if A is not None:
-        y = numpy.zeros((A.shape[0],1))
+        y = numpy.ones((A.shape[0],1))
         b = b.reshape(len(b),1)
     else:
         y = None

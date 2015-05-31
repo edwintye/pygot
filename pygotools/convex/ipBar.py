@@ -284,4 +284,4 @@ def _updateFeasibleNewton(x, gOrg, H, t, z, G, h, y, A, b):
     oldOldFx = oldOldFxTemp
     x += step * deltaX
 
-    return x, z, y, fx, oldFx, oldOlfFx
+    return x, z, y, fx, oldFx, oldOldFx

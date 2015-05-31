@@ -27,6 +27,7 @@ class Disp(object):
         elif self._level==5:
             self._fx(fx)
             self._deltaXGrad(deltaX.dot(grad))
+            # print "inside step " +str(step)
             self._step(step)
         print ""
 
@@ -61,4 +62,4 @@ class Disp(object):
         print "{0:0.6g}".format(a).ljust(18),
         
     def _step(self, step):
-        print "{0:0.2g}".format(step).ljust(3),
+        print "{0:0.2g}".format(float(step)).ljust(3),
