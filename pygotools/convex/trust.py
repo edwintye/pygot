@@ -176,6 +176,7 @@ def trustExact(x, g, H, radius=1.0, maxiter=10):
     
     return  pk, tau
 
+
 def trustSubspace(x, g, H, radius=1.0, maxiter=10):
     # we use tau as the size of our regularization because
     # lambda is a reserved keyword
