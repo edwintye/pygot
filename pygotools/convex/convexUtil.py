@@ -59,7 +59,7 @@ def _checkInitialValue(x0, G, h, A, b):
 
     return x
 
-def _logBarrier(x, func, t, G, h):
+def _logBarrier(func, t, G, h):
     def F(x):
         p = len(x)
         x = x.reshape(p,1)
@@ -70,12 +70,12 @@ def _logBarrier(x, func, t, G, h):
             if numpy.any(s<=0):
                 return numpy.nan_to_num(numpy.inf)
             else:
-                return func(x) - numpy.log(s).sum()/t
+                return t*func(x) - numpy.log(s).sum()
         else:
             return func(x)
     return F
 
-def _logBarrierGrad(x, func, gOrig, t, G, h):
+def _logBarrierGrad(func, gOrig, t, G, h):
     def F(x):
         p = len(x)
         x = x.reshape(p,1)
@@ -84,9 +84,9 @@ def _logBarrierGrad(x, func, gOrig, t, G, h):
             s = h - G.dot(x)
             Gs = G/s
             Dphi = Gs.sum(axis=0).reshape(p,1)
-            g = gOrig + Dphi/t
+            g = t * gOrig + Dphi
         else:
-            g = gOrig
+            g = t * gOrig
         return g.ravel()
     return F
 

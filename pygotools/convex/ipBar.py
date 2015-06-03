@@ -1,4 +1,3 @@
-from pygotools.direct.directAlg import reltol
 
 __all__ = [
     'ipBar'
@@ -71,7 +70,7 @@ def ipBar(func, grad, hessian=None, x0=None,
     dispObj = Disp(disp)
     i = 0
     t = 0.01
-    mu = 10.0
+    mu = 20.0
     step0 = 1.0  # back tracking search step maximum value
     step = 0.0
 
@@ -80,13 +79,19 @@ def ipBar(func, grad, hessian=None, x0=None,
         oldFx = numpy.inf
         # define the barrier function given t.  Note that
         # t is adjusted at each outer iteration
-        barrierFunc = _logBarrier(x, func, t, G, h)
+        barrierFunc = _logBarrier(func, t, G, h)
         if j==0:
             fx = barrierFunc(x)
             #print "barrier = " +str(fx)
-            
-        while (abs(fx-oldFx)/fx)>=reltol:
-            gOrig = grad(x).reshape(p,1)
+        update = True
+        #while (abs(fx-oldFx)/fx)>=rtol and abs(fx-oldFx)>=atol:
+        # for i in range(1):
+        while update:
+            # print abs(fx-oldFx)
+            # print abs(fx-oldFx)/fx
+            # print fx
+            # print oldFx
+            gOrig = grad(x.ravel()).reshape(p,1)
 
             if hessian is None:
                 if oldGrad is None:
@@ -95,7 +100,7 @@ def ipBar(func, grad, hessian=None, x0=None,
                     diffG = numpy.array(gOrig - oldGrad).ravel()
                     H = approxH(H, diffG, step * deltaX.ravel())
             else:
-                H = hessian(x)
+                H = hessian(x.ravel())
 
             ## standard log barrier
             if G is not None:
@@ -104,16 +109,16 @@ def ipBar(func, grad, hessian=None, x0=None,
                 s2 = s**2
                 Dphi = Gs.sum(axis=0).reshape(p,1)
                 if j==0:
-                    t = _findInitialBarrier(gOrig,Dphi/t,A)
-                    print "initial barrier = " +str(t)
-                    print "fake barrier = "+str(_findInitialBarrier(gOrig,Dphi,A))
+                    t = _findInitialBarrier(gOrig,Dphi,A)
+                    # print "initial barrier = " +str(t)
+                    # print "fake barrier = "+str(_findInitialBarrier(gOrig,Dphi,A))
                 
-                Haug = H + numpy.einsum('ji,ik->jk',G.T, G/s2)/t
-                g = gOrig + Dphi/t
+                Haug = t*H + numpy.einsum('ji,ik->jk',G.T, G/s2)
+                g = t*gOrig + Dphi
 
             else:
-                Haug = H
-                g = gOrig
+                Haug = t*H
+                g = t*gOrig
 
         ## solving the QP to get the descent direction
             if A is not None:
@@ -138,10 +143,12 @@ def ipBar(func, grad, hessian=None, x0=None,
             oldFx = fx
             oldGrad = gOrig
 
-            lineFunc = lineSearch(step0, x, deltaX, barrierFunc)
+            lineFunc = lineSearch(x, deltaX, barrierFunc)
             #step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+
+            # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), alpha=0.0001,beta=0.8)
             
-            barrierGrad = _logBarrierGrad(x, func, gOrig, t, G, h)
+            barrierGrad = _logBarrierGrad(func, gOrig, t, G, h)
             step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(barrierFunc,
                                                                             barrierGrad,
                                                                             x.ravel(),
@@ -150,21 +157,27 @@ def ipBar(func, grad, hessian=None, x0=None,
                                                                             oldFx,
                                                                             oldOldFx
                                                                             )
-            
+
+            # print "fx = " +str(fx)
+            # print "step= " +str(step)
             # if step is not None:
                 # print "step = "+str(step)+ " with fx" +str(fx)+ " and barrier = " +str(barrierFunc(x + step * deltaX))
                 # print "s"
                 # print h - G.dot(x + step * deltaX)
             if step is None:
-                # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-                step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-                print "fail wolfe = " +str(step)+ " maxStep = " +str(step0)
+                # step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+                step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), alpha=0.0001,beta=0.8)
+                # print "fail wolfe = " +str(step)+ " maxStep = " +str(step0)                
+                # print "fx = " +str(fx)
+                # print "step= " +str(step)
+                update = False
                 
             oldOldFx = oldOldFxTemp
             x += step * deltaX
             # print "stepped func = "+str(func(x))
             j += 1
-            dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel(), step)
+            # dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel(), step)
+            dispObj.d(j, x.ravel() , func(x.ravel()), deltaX.ravel(), g.ravel(), step)
             # end of inner iteration
         i += 1
         # obtain the missing Lagrangian multiplier
@@ -177,6 +190,8 @@ def ipBar(func, grad, hessian=None, x0=None,
                 break
         else:
             t *= mu
+        
+        # print scipy.linalg.norm(_rDualFunc(x, grad, z, G, y, A))
         
         if scipy.linalg.norm(_rDualFunc(x, grad, z, G, y, A))<=EPSILON:
             break
@@ -216,8 +231,9 @@ def ipBar(func, grad, hessian=None, x0=None,
         return x.ravel()
 
 
-
+# we have included the infeasible step here
 def _updateFeasibleNewton(x, gOrg, H, t, z, G, h, y, A, b):
+
     # standard log barrier
     if G is not None:
         s = h - G.dot(x)
@@ -225,15 +241,14 @@ def _updateFeasibleNewton(x, gOrg, H, t, z, G, h, y, A, b):
         s2 = s**2
         Dphi = Gs.sum(axis=0).reshape(p,1)
         if j==0:
-            t = _findInitialBarrier(gOrig,Dphi/t,A)
-            print "initial barrier = " +str(t)
-            print "fake barrier = "+str(_findInitialBarrier(gOrig,Dphi,A))
+            t = _findInitialBarrier(gOrig,Dphi,A)
+            # print "initial barrier = " +str(t)
+            # print "fake barrier = "+str(_findInitialBarrier(gOrig,Dphi,A))
             
-        Haug = H + numpy.einsum('ji,ik->jk',G.T, G/s2)/t
-        g = gOrig + Dphi/t
-
+        Haug = H/t + numpy.einsum('ji,ik->jk',G.T, G/s2)
+        g = gOrig + Dphi
     else:
-        Haug = H
+        Haug = H/t
         g = gOrig
 
     # solving the least squares problem to get the descent direction
@@ -262,24 +277,26 @@ def _updateFeasibleNewton(x, gOrg, H, t, z, G, h, y, A, b):
     lineFunc = lineSearch(step0, x, deltaX, barrierFunc)
     # step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
             
-    barrierGrad = _logBarrierGrad(x, func, gOrig, t, G, h)
-    step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(barrierFunc,
-                                                                    barrierGrad,
-                                                                    x.ravel(),
-                                                                    deltaX.ravel(),
-                                                                    g.ravel(),
-                                                                    oldFx,
-                                                                    oldOldFx
-                                                                    )
+    # barrierGrad = _logBarrierGrad(x, func, gOrig, t, G, h)
+    # step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(barrierFunc,
+    #                                                                 barrierGrad,
+    #                                                                 x.ravel(),
+    #                                                                 deltaX.ravel(),
+    #                                                                 g.ravel(),
+    #                                                                 oldFx,
+    #                                                                 oldOldFx
+    #                                                                 )
             
+    step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+
     # if step is not None:
     # print "step = "+str(step)+ " with fx" +str(fx)+ " and barrier = " +str(barrierFunc(x + step * deltaX))
     # print "s"
     # print h - G.dot(x + step * deltaX)
-    if step is None:
-        # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-        step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-        print "fail wolfe = " +str(step)+ " maxStep = " +str(step0)
+    # if step is None:
+
+        # step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
+        # print "fail wolfe = " +str(step)+ " maxStep = " +str(step0)
                 
     oldOldFx = oldOldFxTemp
     x += step * deltaX

@@ -18,9 +18,9 @@ from scipy.optimize import line_search
 
 #from cvxopt import solvers, matrix
 
-from cvxopt import matrix
+from cvxopt import matrix, blas
 from cvxopt import solvers
-solvers.options['show_progress'] = True
+solvers.options['show_progress'] = False
 solvers.options['reltol'] = 1e-6
 solvers.options['reltol'] = 1e-6
 
@@ -85,7 +85,10 @@ def sqp(func, grad=None, hessian=None, x0=None,
             H = hessian(x.ravel())
 
         if method=='trust':
-            x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegionSOCP(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
+            if hessian is None:
+                x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegion(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
+            else:
+                x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegionSOCP(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
         else:
             x, deltaX, z, y, fx, oldFx, oldOldFx, oldGrad, step, innerIter = _updateLineSearch(x, fx, oldFx, oldOldFx, deltaX, g, H, func, grad, z, G, h, y, A, b)
 
@@ -189,7 +192,7 @@ def _updateLineSearch(x, fx, oldFx, oldOldFx, oldDeltaX, g, H, func, grad, z, G,
     oldGrad = g.copy()
     # print oldGrad
 
-    lineFunc = lineSearch(1, x, deltaX, func)
+    lineFunc = lineSearch(x, deltaX, func)
     #step, fx = exactLineSearch(1, x, deltaX, func)
     # step, fc, gc, fx, oldFx, new_slope = line_search(func,
     #                                                  grad,
@@ -249,7 +252,8 @@ def _updateTrustRegion(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, 
     deltaX = numpy.array(qpOut['x'])
     # diffM is the difference between the real objective
     # function and M, the quadratic approximation 
-    M = diffM(deltaX.flatten(), g.flatten(), H)
+    # M = diffM(deltaX.flatten(), g.flatten(), H)
+    M = diffM(g.flatten(), H)
     
     newFx = func(x + deltaX)
     predRatio = (fx - newFx) / M(deltaX)
@@ -282,8 +286,6 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
     else:
         bTemp = None
 
-    
-
     GTemp = numpy.append(numpy.zeros((1,p)), numpy.eye(p), axis=0)
     hTemp = numpy.zeros(p+1)
     hTemp[0] += radius
@@ -291,6 +293,9 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
     if G is not None:
         GTemp = numpy.append(G, GTemp, axis=0)
         hTemp = numpy.append(h - G.dot(x), hTemp)
+        dims1 = {'l': G.shape[0], 'q': [p+1,p+1], 's': []}
+    else:
+        dims1 = {'l': 0, 'q': [p+1,p+1], 's': []}
 
     # now we have finished the setup process, we reformulate
     # the problem as a SOCP
@@ -309,28 +314,73 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
                                  axis=0))
 
     hTemp1 = matrix(numpy.append(hTemp,hTemp1))
-    if G is not None:
-        dims1 = {'l': G.shape[0], 'q': [n+1,n+1], 's': []}
-    else:
-        dims1 = {'l': 0, 'q': [n+1,n+1], 's': []}
+    # if G is not None:
+    #     dims1 = {'l': G.shape[0], 'q': [n+1,n+1], 's': []}
+    # else:
+    #     dims1 = {'l': 0, 'q': [n+1,n+1], 's': []}
     # solving the SOCP to get the descent direction
 
-    try:
-        if A is not None:
-            out = solvers.conelp(c, GTemp1, hTemp1, dims1, matrix(A), matrix(bTemp))
-        else:
-            out = solvers.conelp(c, GTemp1, hTemp1, dims1)
-    except Exception as e:
+    # try:
+    # primalstart = dict()
+    # print g * radius/numpy.linalg.norm(g)
+    # print matrix(g * radius/numpy.linalg.norm(g))
+    # print fx
+    #cauchyStep = matrix(numpy.append([fx], g * radius/numpy.linalg.norm(g),axis=0))
+
+    # deno = g.T.dot(g) / (g.T.dot(H.dot(g)))
+
+    # cauchyStep = matrix(numpy.append([fx], deno * g,axis=0))
+
+    # s = hTemp1 - GTemp1 * cauchyStep
+    # #print G.shape
+    # while numpy.any(numpy.array(s[0:G.shape[0]])<=0.0):
+    #     cauchyStep *= 0.5
+    #     s = hTemp1 - GTemp1 * cauchyStep
+    # s[G.shape[0]+1:G.shape[0]+p+1] *= 0.95
+    # s[G.shape[0]+p+1] = 2.0 * blas.nrm2(s[G.shape[0]+p+2::])
+
+    #if z.shape[0]==numpy.array(s).shape[0]:
+    # print "Ineq"
+    # print s[0:G.shape[0]]
+    # print "TR"
+    # print s[G.shape[0]:G.shape[0]+p+1]
+    # print blas.nrm2(matrix(s[G.shape[0]+1:G.shape[0]+p+1]))
+    # print "obj"
+    # print s[G.shape[0]+p+1::]
+    # print blas.nrm2(matrix(s[G.shape[0]+p+2::]))
+
+    # if z.shape[0]==numpy.array(s).shape[0]:
+    #     print z.shape
+    #     print numpy.array(s).shape
+    #     print numpy.append(numpy.array(z),numpy.array(s),axis=1)
+    # else:
+    #     print s
+    # print s
+    # if z.shape[0]==numpy.array(s).shape[0]:
+    #     primalstart['s'] = matrix(s)
+    #     primalstart['x'] = cauchyStep
+    # else:
+    #     #primalstart['s'] = matrix(1.0,s.size)
+    #     primalstart['s'] = matrix(s)
+    #     primalstart['x'] = cauchyStep
+
+    # print primalstart['s']
+    if A is not None:
+        out = solvers.conelp(c, GTemp1, hTemp1, dims1, matrix(A), matrix(bTemp)) #, primalstart=primalstart)
+    else:
+        out = solvers.conelp(c, GTemp1, hTemp1, dims1) #, primalstart=primalstart)
+    #except Exception as e:
         #print "H"
         #print H
         #print "H eigenvalue"
         #print scipy.linalg.eig(H)[0]
-        raise e
+        #raise e
 
     # exact the descent diretion and do a line search
     deltaX = numpy.array(out['x'][1::])
 
-    M = diffM(deltaX.flatten(), g.flatten(), H)
+    # M = diffM(deltaX.flatten(), g.flatten(), H)
+    M = diffM(g.flatten(), H)
     
     # print x
     # print deltaX
@@ -361,10 +411,13 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
     if A is not None:
         y[:] = numpy.array(out['y'])
 
+    # print numpy.append(numpy.array(out['s']),numpy.array(s),axis=1)
+
     return x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, out['iterations']
 
 
-def diffM(deltaX, g, H):
+# def diffM(deltaX, g, H):
+def diffM(g, H):
     def M(deltaX):
         m = -g.dot(deltaX) - 0.5 * deltaX.T.dot(H).dot(deltaX)
         return m
