@@ -8,15 +8,13 @@ __all__ = [
 import scipy.optimize
 import numpy
 
-def lineSearch(step, x, deltaX, func):
+def lineSearch(x, deltaX, func):
     '''
     Returns a callable which will take a single
     input argument and be used as a line search function.
     
     Parameters
     ----------
-    t: numeric
-        maximum descent step to take
     x: array like
         the parameters of interest
     deltaX: array like

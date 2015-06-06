@@ -133,6 +133,10 @@ def _rDualFunc(x, gradFunc, z, G, y, A):
 def _rCentFunc(z, s, t):
     return z*s - (1.0/t)
 
+def _rCentFunc2(x, z, G, h, t):
+    s = h - G.dot(x)
+    return _rCentFunc(z, s, t)
+
 def _rPriFunc(x, A, b):
     return A.dot(x) - b         
         
