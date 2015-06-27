@@ -130,12 +130,22 @@ def _rDualFunc(x, gradFunc, z, G, y, A):
         g += A.T.dot(y)
     return g
 
-def _rCentFunc(z, s, t):
-    return z*s - (1.0/t)
+def _rCentFunc(z, s, t=None):
+    if t==None:
+        return z*s
+    else:
+        return z*s - (1.0/t)
 
 def _rCentFunc2(x, z, G, h, t):
     s = h - G.dot(x)
     return _rCentFunc(z, s, t)
+
+def _rCentFuncCorrect(z, s, deltaZ, deltaS, t=None):
+    # print deltaZ * deltaS
+    if t==None:
+        return z*s + deltaZ * deltaS
+    else:
+        return z*s + deltaZ * deltaS - (1.0/t)
 
 def _rPriFunc(x, A, b):
     return A.dot(x) - b         

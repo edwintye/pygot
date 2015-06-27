@@ -24,7 +24,7 @@ def ip(func, grad, hessian=None, x0=None,
                      maxiter,
                      disp, full_output)
     elif method=='pd':
-        return ipPD2(func, grad, hessian, x0,
+        return ipPDandPDC(func, grad, hessian, x0,
                      lb, ub,
                      G, h,
                      A, b,
@@ -32,7 +32,7 @@ def ip(func, grad, hessian=None, x0=None,
                      method='pd',
                      disp=disp, full_output=full_output)
     elif method=='pdc':
-        return ipPD2(func, grad, hessian, x0,
+        return ipPDandPDC(func, grad, hessian, x0,
                      lb, ub,
                      G, h,
                      A, b,

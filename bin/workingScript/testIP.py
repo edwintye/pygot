@@ -67,8 +67,110 @@ res = minimize(rosen, theta,
 
 from pygotools.convex import sqp, ip, ipPDC, ipPD, ipBar
 
-## sqp
+## abc
 
+from cvxopt import solvers, matrix, blas
+from pygotools.convex.convexUtil import _setup
+z, G, h, y, A, b = _setup(lb, ub, None, None, None, None)
+p = len(theta)
+x = numpy.array(theta).reshape(p,1)
+radius = 1.0
+
+GTemp = numpy.append(numpy.zeros((1,p)), numpy.eye(p), axis=0)
+hTemp = numpy.zeros(p+1)
+hTemp[0] += radius
+
+GTemp = numpy.append(G, GTemp, axis=0)
+hTemp = numpy.append(h - G.dot(x), hTemp)
+dims = {'l': G.shape[0], 'q': [p+1], 's':  []}
+
+H = rosen_hess(theta)
+H = numpy.eye(p)
+g = rosen_der(theta)
+
+qpOut = solvers.coneqp(matrix(H), matrix(g), matrix(GTemp), matrix(hTemp), dims)
+
+# converting to a cp
+
+def F(x=None, z=None):
+    if x is None: return 0, matrix(0.0,(p,1))
+    # H = matrix(rosen_hess(numpy.array(x).ravel()))
+    # H = matrix(rosen_hess(theta))
+    H = matrix(numpy.eye(p))
+    g = matrix(rosen_der(numpy.array(x).ravel()))
+    g = matrix(rosen_der(theta))
+    f = 0.5 * x.T * H * x + g.T * x
+    df = (H * x + g).T
+    #df = -(g).T
+    if z is None: return f, df
+    H = z[0] * H
+    return f, df, H
+        
+sol1 = solvers.cp(F, matrix(GTemp), matrix(hTemp), dims)
+
+def F2(x=None, z=None):
+    if x is None: return 0, matrix(0.0,(p,1))
+    # H = matrix(rosen_hess(numpy.array(x).ravel()))
+    # H = matrix(rosen_hess(theta))
+    H = matrix(numpy.eye(p))
+    # g = matrix(rosen_der(numpy.array(x).ravel()))
+    g = matrix(rosen_der(theta))
+    f = blas.nrm2(H*x+g)**2
+    df = 2.0*(H.T * (H*x+g)).T
+    if z is None: return f, df
+    H = z[0] * 2.0 * H.T * H
+    return f, df, H
+        
+sol2 = solvers.cp(F2, matrix(GTemp), matrix(hTemp), dims)
+
+print sol1['x']
+print sol2['x']
+print qpOut['x']
+
+import scipy.sparse
+
+H = rosen_hess(theta)
+m,n = GTemp.shape
+c = matrix([1.0] + [0.0]*n)
+
+hTemp1 = matrix([0.0]+(-g).tolist())
+GTemp1 = matrix(numpy.array(scipy.sparse.bmat([
+    [[-1.0],None],
+    [None,H]
+    ]).todense()))
+
+GTemp1 = matrix(numpy.append(numpy.append(numpy.array([0]*m).reshape(m,1),numpy.array(GTemp),axis=1),
+                             numpy.array(GTemp1),
+                             axis=0))
+
+hTemp1 = matrix(numpy.append(hTemp,hTemp1))
+dims1 = {'l': G.shape[0], 'q': [n+1,n+1], 's': []}
+
+solSOCP = solvers.conelp(c, GTemp1, hTemp1, dims1)
+
+print solSOCP['x'][1::]
+
+## testing the change in objective function
+
+print F(matrix(theta))[0]
+print F(matrix(theta) + solSOCP['x'][1::])[0]
+print F(matrix(theta) + sol1['x'])[0]
+
+blas.nrm2(solSOCP['x'][1::])
+blas.nrm2(sol1['x'])
+blas.nrm2(qpOut['x'])
+
+blas.nrm2(hTemp1[-n::] - matrix(GTemp)[-n::,:] * solSOCP['x'][1::] )
+
+blas.nrm2(hTemp[1::] - GTemp[1::,1::] * sol1['x'] )
+
+# now an socp
+
+print sol1['x']
+print sol2['x']
+print qpOut['x']
+print solSOCP['x'][1::]
+## sqp
 
 xhat, output = sqp(rosen,
                    rosen_der,
@@ -77,6 +179,22 @@ xhat, output = sqp(rosen,
                    method='trust',
                    disp=5, full_output=True)
 
+xhat, output = sqp(rosen,
+                   rosen_der,
+                   rosen_hess,
+                   x0=theta,
+                   maxiter=100,
+                   method='trust',
+                   disp=5, full_output=True)
+
+xhat, output = sqp(rosen,
+                   rosen_der,
+                   rosen_hess,
+                   x0=theta,
+                   lb=lb, ub=ub,
+                   maxiter=100,
+                   method='trust',
+                   disp=5, full_output=True)
 
 xhat, output = sqp(rosen,
                    rosen_der,
@@ -85,7 +203,7 @@ xhat, output = sqp(rosen,
                    G=None, h=None,
                    A=None, b=None,
                    maxiter=100,
-                   method='trust',
+                   method='line',
                    disp=5, full_output=True)
 
 xhat, output = sqp(rosen,
@@ -97,15 +215,6 @@ xhat, output = sqp(rosen,
                    method='trust',
                    disp=3, full_output=True)
 
-xhat, output = sqp(rosen,
-                   rosen_der,
-                   x0=theta,
-                   lb=None, ub=None,
-                   G=None, h=None,
-                   A=A, b=b,
-                   method='line',
-                   disp=5, full_output=True)
-
 
 ## interior point interface
 
@@ -115,6 +224,7 @@ xhat, output = ip(rosen,
                   lb=None, ub=None,
                   G=None, h=None,
                   A=None, b=None,
+                  maxiter=50,
                   method='pdc',
                   disp=5, full_output=True)
 
@@ -125,8 +235,8 @@ xhat, output = ip(rosen,
                   lb=lb, ub=ub,
                   G=None, h=None,
                   A=None, b=None,
-                  maxiter=300,
-                  method='pd',
+                  maxiter=500,
+                  method='pdc',
                   disp=5, full_output=True)
 
 
@@ -136,8 +246,9 @@ xhat, output = ip(rosen,
                   lb=lb, ub=ub,
                   G=None, h=None,
                   A=A, b=b,
-                  method='pdc',
+                  method='pd',
                   disp=3, full_output=True)
+
 
 
 ## interior point barrier

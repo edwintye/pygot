@@ -7,7 +7,7 @@ from pygotools.optutils.optCondition import lineSearch, exactLineSearch2,exactLi
 
 from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
-from pygotools.gradient.finiteDifference import forwardGradCallHessian
+from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 from .approxH import *
 from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
 from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc
@@ -47,11 +47,11 @@ def ipPD(func, grad, hessian=None, x0=None,
             raise Exception("Input name of hessian is not recognizable")
 
     if grad is None:
-        def finiteForward(x,func,p):
+        def finiteForward(func,p):
             def finiteForward1(x):
                 return forward(func,x.ravel())
             return finiteForward1
-        grad = finiteForward(x,func,p)
+        grad = finiteForward(func,p)
 
     g = numpy.zeros((p,1))
     gOrig = g.copy()
