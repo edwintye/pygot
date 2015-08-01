@@ -28,6 +28,7 @@ setup(name='pygotools',
       install_requires=[
                         'scipy',
                         'numpy',
+                        'cvxopt'
                         'enum34'],
       test_suite='nose.collector',
       tests_require=[
