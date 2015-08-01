@@ -1,2 +1,2 @@
-# pygot
-python global optimization toolbox
+# pygotools
+python global optimization tools

@@ -1,9 +1,9 @@
 #%load_ext autoreload
 #%autoreload 2
 ### now we test on a standard rectangle case
-from pyOptimUtil.direct import directObj, polyOperation, directUtil, directAlg, optimTestFun, rectOperation
-from pyOptimUtil.direct import directObj, polyOperation, directAlg, optimTestFun
-import pyOptimUtil.direct
+from pygotools.direct import direct, directOptim
+from pygotools.optutils import optimTestFun, consMani
+import pygotools.direct
 import numpy
 import scipy.spatial
 import matplotlib.pyplot as plt
@@ -14,37 +14,37 @@ ub = numpy.ones(2) * boundSize
 
 func = optimTestFun.rosen
 
-rectListOptim,output = directAlg.directOptim(func,lb,ub,
+rectListOptim,output = directOptim(func,lb,ub,
                                                  iteration=50,
                                                  numBox=1000,
                                                  targetMin=0,
                                                  scaleOutput=False,
                                                  full_output=True)
 
-pyOptimUtil.direct.plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+pygotools.direct.plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
 # class object 
-directObj = directAlg.direct(func,lb,ub)
+directObj = direct(func,lb,ub)
 rectListOptim,output = directObj.divide(50,numBox=10000,full_output=True)
 
-potentialIndex = directUtil.identifyPotentialOptimalObjectPareto(rectListOptim)
-pyOptimUtil.direct.directUtil.plotParetoFrontRect(rectListOptim,potentialIndex)
+potentialIndex = pygotools.direct.identifyPotentialOptimalObjectPareto(rectListOptim)
+pygotools.direct.plotParetoFrontRect(rectListOptim,potentialIndex)
 
-pyOptimUtil.direct.plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
+pygotools.direct.plotDirectBox(rectListOptim,lb,ub,scaleOutput=False)
 
 # in terms of inequalities 
 A = numpy.array([[-1.,-1.],[1.,-1]])
 b = numpy.array([0,1])
-A,b = polyOperation.addBoxToInequalityLBUB(lb,ub,A,b)
+A,b = consMani.addBoxToInequalityLBUB(lb,ub,A,b)
 
-directObj = directAlg.direct(func,lb,ub,A,b)
+directObj = direct(func,lb,ub,A,b)
 polyListOptim,output = directObj.divide(15,numBox=2000,full_output=True)
 
-potentialIndex = polyOperation.identifyPotentialOptimalPolygonPareto(polyListOptim)
+potentialIndex = pygotools.direct.identifyPotentialOptimalPolygonPareto(polyListOptim)
 
-pyOptimUtil.direct.plotDirectPolygon(polyListOptim,potentialIndex)
+pygotools.direct.plotDirectPolygon(polyListOptim,potentialIndex)
 
-pyOptimUtil.direct.directUtil.plotParetoFrontPoly(polyListOptim,potentialIndex)
+pygotools.direct.directUtil.plotParetoFrontPoly(polyListOptim,potentialIndex)
 
 index = directUtil.findLowestObjIndex(polyListOptim)
 polyListOptim[index].getFx()

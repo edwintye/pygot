@@ -6,6 +6,7 @@ Created on 18th of Feb, 2015
 '''
 from setuptools import setup
 
+
 def readme():
     with open('README.rst') as f:
         return f.read()
@@ -21,16 +22,20 @@ setup(name='pygotools',
                 'pygotools.direct',
                 'pygotools.gradient',
                 'pygotools.responseSurface'
+                'pygotools.convex',
+                'pygotools.optutils'
                 ],
       license='LICENCE.txt',
       install_requires=[
-                    'scipy',
-                    'numpy'
-                        ],
+                        'scipy',
+                        'numpy',
+                        'cvxopt',
+                        'enum34'],
       test_suite='nose.collector',
       tests_require=[
                      'nose',
                      'numpy',
+                     'scipy'
                      ],
       scripts=[]
       )

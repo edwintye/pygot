@@ -1,3 +1,5 @@
-/pygot.egg-info/
+/pygotools.egg-info/
 /.project
 /.pydevproject
+/*.pyc
+/.pygotools/*.pyc

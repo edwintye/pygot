@@ -7,20 +7,19 @@ __all__ = [
 import numpy
 import copy
 
+from rectOperation import RectangleObj
 from rectOperation import divideGivenRectangle
 from rectOperation import identifyPotentialOptimalRectangleLipschitz
 from rectOperation import identifyPotentialOptimalRectanglePareto
 from rectOperation import inverseScaleLocation, inverseScaleBounds
 
-from polyOperation import triangulatePolygon
-from polyOperation import divideGivenPolygon
-from polyOperation import addBoxToInequalityLBUB
+from polyOperation import triangulatePolygon, divideGivenPolygon
 from polyOperation import identifyPotentialOptimalPolygonPareto
+from polyOperation import PolygonObj
+
+from pygotools.optutils.consMani import addBoxToInequality
 
 from directUtil import IdConditionType, findLowestObjIndex, plotDirectPolygon
-
-from rectOperation import RectangleObj
-from polyOperation import PolygonObj
 
 TOLERENCE = 1E-4 #class rectOperation:
 abstol = 1e-8
