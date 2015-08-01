@@ -15,7 +15,7 @@ before_install:
 # command to install dependencies
 install:
   # standard stuff you need for scientific computing
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose cvxopt
   # - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose dateutil pandas statsmodels
   - python setup.py install
   - pip install -r requirements.txt
