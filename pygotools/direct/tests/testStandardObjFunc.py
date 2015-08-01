@@ -7,7 +7,7 @@ from pygotools.optutils import optimTestFun
 
 class TestStandardObjFunc(TestCase):
     def test_Rosen(self):
-        lb = numpy.array([-2.,-2.],float)
+        lb = numpy.array([-2.,2.],float)
         ub = numpy.array([2.,2.],float)
 
         print("Now we start DIRECT, with scaled output")

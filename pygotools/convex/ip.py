@@ -4,7 +4,7 @@ __all__ = [
     ]
 
 from .ipBar import ipBar
-from .ipPD2 import ipPD2
+from .ipPDandPDC import ipPDandPDC
 
 def ip(func, grad, hessian=None, x0=None,
        lb=None, ub=None,
