@@ -47,8 +47,8 @@ class GP(object):
         if rbfFun is None:
             self._rbfFun = pygotools.responseSurface.covFun.exp()
 
-    def negLogLike(self,theta):
-        beta, phi, sigma2, tau2 = _unrollParam(theta, self._numBeta)
+    def negLogLike(self, theta):
+        beta, phi, sigma2, tau2 = self._unrollParam(theta, self._numBeta)
         G = sigma2*self._rbfFun.f(phi,self._D);
         if tau2 is None:
             H = G
@@ -66,7 +66,7 @@ class GP(object):
             return numpy.inf
 
     def gradient(self, theta):
-        beta, phi, sigma2, tau2 = _unrollParam(theta, self._numBeta)
+        beta, phi, sigma2, tau2 = self._unrollParam(theta, self._numBeta)
 
         G, H, quadForm, invH, DG, dPhi, dSigma, dTau = _getParamDerivativeInfo(self._y, self._x1,
                                                                          beta, phi, sigma2, tau2,
@@ -84,7 +84,7 @@ class GP(object):
 
     def hessian(self, theta):
         # TODO: check the correctness of this
-        beta, phi, sigma2, tau2 = _unrollParam(theta, self._numBeta)
+        beta, phi, sigma2, tau2 = self._unrollParam(theta, self._numBeta)
 
         G, H, quadForm, invH, DG, dPhi, dSigma, dTau = _getParamDerivativeInfo(self._y, self._x1,
                                                                          beta, phi, sigma2, tau2,
@@ -258,21 +258,26 @@ class GP(object):
 
         return hessian
 
-def _unrollParam(theta, numBeta):
+    def _unrollParam(self, theta, numBeta):
 
-    beta = theta[0:numBeta]
-    phi = theta[numBeta]
-    sigma2 = theta[numBeta+1]
+        beta = theta[0:numBeta]
+        phi = theta[numBeta]
+        sigma2 = theta[numBeta+1]
+        # print theta
+        # print len(theta)
 
-    if len(theta)==numBeta+1:
-        tau2 = None
-    else:
-        tau2 = theta[numBeta+2]
-
-    # print theta
-    # print tau2
-        
-    return beta, phi, sigma2, tau2
+        if len(theta)==numBeta+3:
+            if self._tau2 is None:
+                raise Exception("Input included nugget but not specified initially")
+            else:
+                tau2 = theta[numBeta+2]
+        else:
+            if self._tau2 is None:
+                tau2 = None
+            else:
+                raise Exception("Specified nugget but not in input")
+            
+        return beta, phi, sigma2, tau2
 
 def _predictSetup(xOrig, sOrig, xPred, sPred):
     n, p = xOrig.shape
@@ -336,13 +341,20 @@ def _getParamDerivativeInfo(y, x1, beta, phi, sigma2, tau2, D, n, rbfFun):
 
     W = (y-x1.dot(beta));
 
-    invH = numpy.linalg.solve(H,numpy.eye(n))
-    quadForm = invH.dot(W);
+    #invH = numpy.linalg.solve(H,numpy.eye(n))
+    L = scipy.linalg.cho_factor(H)
+    invH = scipy.linalg.cho_solve(L,numpy.eye(n))
+    
+    #quadForm = invH.dot(W);
+    quadForm = scipy.linalg.cho_solve(L,W)
 
     DG = -D*G
-    dPhi = invH.dot(DG);
-    dSigma = invH.dot(G/sigma2); 
-    dTau = invH;
+    #dPhi = invH.dot(DG);
+    dPhi = scipy.linalg.cho_solve(L,DG)
+    #dSigma = invH.dot(G/sigma2); 
+    dSigma = scipy.linalg.cho_solve(L,G/sigma2)
+    #dTau = invH;
+    dTau = invH
 
     return G, H, quadForm, invH, DG, dPhi, dSigma, dTau
 

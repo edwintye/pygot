@@ -1,7 +1,9 @@
+%load_ext autoreload
+%autoreload 2
 import scipy.io
 import numpy
 
-A = scipy.io.loadmat('spData')
+A = scipy.io.loadmat('spData') 
 sp = A['sp']
 
 y = sp['y'][0][0]
@@ -11,6 +13,11 @@ s = numpy.append(x,y,axis=1)
 y = sp['Y'][0][0].ravel()
 x1 = sp['X'][0][0].ravel()
 n = len(y)
+
+n = 10
+x = numpy.array([0.056, 6.257, 1.204, 4.346, 4.902, 9.8, 7.624, 4.258, 2.835, 5.497]).reshape(n,1)
+y = numpy.array([ 5.972,  3.391,  4.891,  5.352,  4.423,  3.057,  4.553,  4.365, 7.374, 6.554]).reshape(n,1)
+s = numpy.append(x,y,axis=1)
 
 import scipy.spatial 
 
@@ -22,20 +29,59 @@ from pygotools.responseSurface import GP, exp
 rbfFun = exp()
 rbfFun.f(1e-8,D)
 
-gp = GP(y,None,s)
+gp = GP(y.ravel(),None,s,nugget=False)
 theta = gp.getInitialGuess()
+theta = numpy.array([5,1,1,1],float)
 
 gp.negLogLike(theta)
 gp.gradient(theta)
 gp.hessian(theta)
 
+from pygotools.gradient import finiteDifference
+finiteDifference.forward(gp.negLogLike,theta)
+finiteDifference.central(gp.negLogLike,theta)
+finiteDifference.forwardHessian(gp.negLogLike,theta)
+finiteDifference.forwardGradCallHessian(gp.gradient,theta)-gp.hessian(theta)
+
+
 box = list()
 for i in range(len(theta)):
-    box.append((1e-8,numpy.inf))
+    box.append((1e-8,10))
 
-scipy.optimize.minimize(fun=gp.negLogLike,
-                        x0=theta,
-                        bounds=box)
+boxArray = numpy.array(box)
+
+out = scipy.optimize.minimize(fun=gp.negLogLike,
+                              jac=gp.gradient,
+                              hess=gp.hessian,
+                              x0=theta,
+                              method='dogleg')
+                              bounds=box)
+
+scipy.optimize.root(gp.gradient,theta)
+
+from pygotools.convex import sqp,ip,ipPDC, ipPD, ipBar, trustRegion
+xhat, output = sqp(gp.negLogLike,
+                   gp.gradient,
+                   gp.hessian,
+                   method='line',
+                   x0=theta,
+                   lb=boxArray[:,0], ub=boxArray[:,1],
+                   disp=4, full_output=True)
+
+xhat, output = sqp(gp.negLogLike,
+                   gp.gradient,
+                   gp.hessian,
+                   x0=theta,
+                   lb=boxArray[:,0], ub=boxArray[:,1],
+                   disp=4, full_output=True)
+
+xhat, output = ip(gp.negLogLike,
+                   gp.gradient,
+                  method='pdc',
+                   x0=theta,
+                   lb=boxArray[:,0], ub=boxArray[:,1],
+                   disp=5, full_output=True)
+
 
 gp.predict(s,x1)
 gp.predictGradient(s,x1)
