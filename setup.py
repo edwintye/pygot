@@ -21,7 +21,7 @@ setup(name='pygotools',
                 'pygotools',
                 'pygotools.direct',
                 'pygotools.gradient',
-                'pygotools.responseSurface'
+                'pygotools.responseSurface',
                 'pygotools.convex',
                 'pygotools.optutils'
                 ],

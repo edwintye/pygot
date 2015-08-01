@@ -6,6 +6,7 @@ __all__ = [
 from pygotools.optutils.optCondition import sufficientNewtonDecrement
 from pygotools.convex.qpUpdate import _updateLineSearch, _updateTrustRegionSOCP, _updateTrustRegion
 from pygotools.optutils.disp import Disp
+from pygotools.optutils.checkUtil import _checkFunction2DArray
 from pygotools.gradient.finiteDifference import forward
 from .approxH import BFGS
 
@@ -34,12 +35,16 @@ def sqp(func, grad=None, hessian=None, x0=None,
 
     if hessian is None:
         approxH = BFGS
+    else:
+        hessian = _checkFunction2DArray(hessian, x)
     if grad is None:
         def finiteForward(x,func,p):
             def finiteForward1(x):
                 return forward(func,x.ravel())
             return finiteForward1
         grad = finiteForward(x,func,p)
+    else:
+        grad = _checkFunction2DArray(grad, x)
         
     g = numpy.zeros((p,1))
     H = numpy.zeros((p,p))
@@ -49,8 +54,14 @@ def sqp(func, grad=None, hessian=None, x0=None,
     oldGrad = None
     update = True
     deltaX = numpy.zeros((p,1))
+    # print x
+    # print func(x)
+    
+    func = _checkFunction2DArray(func, x)
     fx = func(x)
-
+    
+    # print func(x)
+    
     dispObj = Disp(disp)
     i = 0
     innerI = 0

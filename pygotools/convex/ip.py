@@ -14,7 +14,7 @@ def ip(func, grad, hessian=None, x0=None,
        method='bar',
        disp=0, full_output=False):
     '''
-    An interface to the methods provides in this subpackage.
+    An interface to the methods provides in this sub-package.
     '''
     if method=='bar':
         return ipBar(func, grad, hessian, x0,

@@ -5,6 +5,7 @@ __all__ = [
 
 from pygotools.optutils.optCondition import lineSearch, exactLineSearch2,exactLineSearch, backTrackingLineSearch
 from pygotools.optutils.disp import Disp
+from pygotools.optutils.checkUtil import _checkFunction2DArray
 from pygotools.gradient.finiteDifference import forward 
 from .approxH import *
 from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
@@ -29,6 +30,16 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
 
+    fx = func(x)
+    if numpy.isnan(fx) or numpy.isinf(fx):
+        funcOrig = func
+        def aFunc():
+            def bFunc(x):
+                return funcOrig(x.ravel())
+            return bFunc
+        func = aFunc()
+    
+
     if hessian is None:
         approxH = BFGS
     elif type(hessian) is str:
@@ -41,6 +52,8 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
         else:
             raise Exception("Input name of hessian is not recognizable")
         hessian = None
+    else:
+        hessian = _checkFunction2DArray(hessian, x)
 
     if grad is None:
         def finiteForward(func,p):
@@ -48,6 +61,20 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
                 return forward(func,x.ravel())
             return finiteForward1
         grad = finiteForward(func,p)
+    else:
+        grad = _checkFunction2DArray(grad, x)
+#         try:
+#             g = grad(x)
+#         except Exception:
+#             g = numpy.nan
+#         if numpy.any(numpy.isnan(g)) or numpy.any(numpy.isinf(g)):
+#             gradOrig = grad
+#             def aFunc():
+#                 def bFunc(x):
+#                     return gradOrig(x.ravel())
+#                 return bFunc
+#             grad = aFunc()
+        
 
     if method.lower()=='pd' or method.lower()=='pdc':
         updateFunc = _solveKKTAndUpdatePD
@@ -131,6 +158,8 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
                 if scipy.linalg.norm(r) >= EPSILON:
                     feasible = False
 
+#             print "eta = " +str(eta)
+#             print "r = " +str(r)
             t = mu * m / eta
         else:
             if abs(fx-oldFx)<=EPSILON:
@@ -179,6 +208,11 @@ def _solveKKTAndUpdatePD(x, func, grad, fx, oldFx, oldOldFx, g, gOrig, Haug, z, 
     else:
         deltaX, deltaY, deltaZ = _solveKKTSystemPDC(x, func, grad, g, Haug, z, G, h, y, A, b, t)
 
+    deltaX1, deltaY1, deltaZ1 = _solveKKTSystemPDC(x, func, grad, g, Haug, z, G, h, y, A, b, t)
+    print deltaZ
+    print deltaZ1
+    print deltaX
+    print deltaX1
     # print numpy.append(deltaX,deltaX1,axis=1)
 
     # the only difference is in solving the linear system
@@ -560,4 +594,4 @@ def _solveRefine(A,b):
     r = A.dot(x) - b
     d = scipy.linalg.lu_solve((lu, piv), r).reshape(len(b), 1)
     return x - d
-    
+

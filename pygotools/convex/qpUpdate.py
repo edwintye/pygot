@@ -1,15 +1,15 @@
 import numpy
 from cvxopt import matrix
 from cvxopt import solvers
+
 from pygotools.optutils.optCondition import lineSearch, backTrackingLineSearch
 import scipy.sparse
-solvers.options['show_progress'] = False
-solvers.options['reltol'] = 1e-6
-solvers.options['reltol'] = 1e-6
 
 maxRadius = 1000.0
 
 def _updateLineSearch(x, fx, oldFx, oldOldFx, oldDeltaX, g, H, func, grad, z, G, h, y, A, b):
+
+    _runOptions()
 
     initVals = dict()
     initVals['x'] = matrix(oldDeltaX)
@@ -38,8 +38,7 @@ def _updateLineSearch(x, fx, oldFx, oldOldFx, oldDeltaX, g, H, func, grad, z, G,
     else:
         bTemp = None
 
-    # solving the QP to get the descent direction
-
+    # solving the QP to get the descent direction    
     if A is not None:
         if G is not None:
             qpOut = solvers.coneqp(matrix(H), matrix(g), matrix(G), matrix(hTemp), dims, matrix(A), matrix(bTemp))
@@ -85,6 +84,8 @@ def _updateLineSearch(x, fx, oldFx, oldOldFx, oldDeltaX, g, H, func, grad, z, G,
 
 def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b):
 
+    _runOptions()
+
     if A is not None:
         bTemp = b - A.dot(x)
     else:
@@ -118,22 +119,27 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
                                  axis=0))
 
     hTemp1 = matrix(numpy.append(hTemp,hTemp1))
+    
     if A is not None:
         out = solvers.conelp(c, GTemp1, hTemp1, dims1, matrix(A), matrix(bTemp))
     else:
         out = solvers.conelp(c, GTemp1, hTemp1, dims1)
 
-    # exact the descent diretion and do a line search
+    # exact the descent direction and do a line search
     deltaX = numpy.array(out['x'][1::])
 
     M = _diffM(g.flatten(), H)
     
-    newFx = func(x + deltaX)
+    newFx = func((x + deltaX).ravel())
+    
     predRatio = (fx - newFx) / M(deltaX)
+    # print "predRatio = " +str(predRatio)
         
     if predRatio>=0.75:
         radius = min(2.0*radius, maxRadius)
     elif predRatio<=0.25:
+        radius *= 0.25
+    elif numpy.isnan(predRatio):
         radius *= 0.25
 
     if predRatio>=0.25:
@@ -158,6 +164,8 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
 
 
 def _updateTrustRegion(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b):
+
+    _runOptions()
 
     # readjust the bounds and initial value if possible
     # as we try our best to use warm start
@@ -194,12 +202,14 @@ def _updateTrustRegion(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, 
     # M = diffM(deltaX.flatten(), g.flatten(), H)
     M = _diffM(g.flatten(), H)
     
-    newFx = func(x + deltaX)
+    newFx = func((x + deltaX).ravel())
     predRatio = (fx - newFx) / M(deltaX)
         
     if predRatio>=0.75:
         radius = min(2.0*radius, maxRadius)
     elif predRatio<=0.25:
+        radius *= 0.25
+    elif numpy.isnan(predRatio):
         radius *= 0.25
 
     if predRatio>=0.25:
@@ -226,3 +236,7 @@ def _diffM(g, H):
         return m
     return M
 
+def _runOptions(progress=False,atol=1e-6,reltol=1e-6):
+    solvers.options['show_progress'] = progress
+    solvers.options['atol'] = atol
+    solvers.options['reltol'] = reltol

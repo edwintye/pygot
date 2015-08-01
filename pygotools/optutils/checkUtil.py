@@ -5,6 +5,20 @@ __all__ = [
 
 import numpy
 
+class ArrayError(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
+class InputError(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
 def checkArrayType(x):
     '''
     Check to see if the type of input is suitable.  Only operate on one
@@ -88,3 +102,19 @@ def isNumeric(x):
                       (int, numpy.int16, numpy.int32, numpy.int64,
                       float, numpy.float16, numpy.float32, numpy.float64))
 
+    
+def _checkFunction2DArray(func,x):
+    try:
+        fx = func(x)
+    except Exception:
+        fx = numpy.nan
+    
+    if numpy.any(numpy.isnan(fx)) or numpy.any(numpy.isinf(fx)):
+        funcOrig = func
+        def aFunc():
+            def bFunc(y):
+                return funcOrig(y.ravel())
+            return bFunc
+        func = aFunc()
+    
+    return func

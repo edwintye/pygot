@@ -4,15 +4,15 @@ __all__ = [
     ]
 
 from pygotools.optutils.optCondition import backTrackingLineSearch, exactLineSearch2, lineSearch, sufficientNewtonDecrement
-from pygotools.optutils.checkUtil import checkArrayType
+from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from pygotools.optutils.disp import Disp
-from pygotools.gradient.finiteDifference import forwardGradCallHessian
+from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 
 from .convexUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _setup, _rDualFunc, _checkInitialValue
 from .approxH import *
 
 import numpy
-import scipy.sparse, scipy.linalg
+import scipy.sparse, scipy.linalg, scipy.optimize
 
 from cvxopt import matrix, solvers
 solvers.options['show_progress'] = False
@@ -45,6 +45,8 @@ def ipBar(func, grad, hessian=None, x0=None,
         else:
             raise Exception("Input name of hessian is not recognizable")
         hessian = None
+    else:
+        hessian = _checkFunction2DArray(hessian, x)
 
     if grad is None:
         def finiteForward(x,func,p):
@@ -52,6 +54,8 @@ def ipBar(func, grad, hessian=None, x0=None,
                 return forward(func,x.ravel())
             return finiteForward1
         grad = finiteForward(x,func,p)
+    else:
+        grad = _checkFunction2DArray(grad, x)
 
     if G is not None:
         m = G.shape[0]
