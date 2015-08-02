@@ -16,7 +16,7 @@ setup(name='pygotools',
       description='Global Optimization Toolbox',
       long_description=readme(),
       author="Edwin Tye",
-      author_email="Edwin.Tye@phe.gov.uk",
+      author_email="Edwin.Tye@gmail.com",
       packages=[
                 'pygotools',
                 'pygotools.direct',

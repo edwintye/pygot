@@ -5,9 +5,9 @@ __all__ = [
 
 from pygotools.optutils.optCondition import lineSearch, exactLineSearch2, exactLineSearch, backTrackingLineSearch, sufficientNewtonDecrement
 
-from pygotools.optutils.checkUtil import checkArrayType
+from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from pygotools.optutils.disp import Disp
-from pygotools.gradient.finiteDifference import forwardGradCallHessian
+from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 from .approxH import *
 from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
 from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc
@@ -33,6 +33,18 @@ def ipPDC(func, grad, hessian=None, x0=None,
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
 
+    func = _checkFunction2DArray(func, x)
+    fx = func(x)
+
+    if grad is None:
+        def finiteForward(x,func,p):
+            def finiteForward1(x):
+                return forward(func,x.ravel())
+            return finiteForward1
+        grad = finiteForward(x,func,p)
+    else:
+        grad = _checkFunction2DArray(grad,x)
+
     if hessian is None:
         approxH = BFGS
     elif type(hessian) is str:
@@ -44,14 +56,9 @@ def ipPDC(func, grad, hessian=None, x0=None,
             approxH = DFP
         else:
             raise Exception("Input name of hessian is not recognizable")
-
-    if grad is None:
-        def finiteForward(x,func,p):
-            def finiteForward1(x):
-                return forward(func,x.ravel())
-            return finiteForward1
-        grad = finiteForward(x,func,p)
-
+    else:
+        hessian = _checkFunction2DArray(func, x)
+    
     g = numpy.zeros((p,1))
     gOrig = g.copy()
 
@@ -62,8 +69,6 @@ def ipPDC(func, grad, hessian=None, x0=None,
     deltaZ = 0
     H = numpy.zeros((p,p))
     Haug = H.copy()
-
-    fx = func(x)
 
     dispObj = Disp(disp)
     i = 0
@@ -105,103 +110,6 @@ def ipPDC(func, grad, hessian=None, x0=None,
                                                                          z, G, h, y,
                                                                          A, b, t)
 
-        # ## standard log barrier, \nabla f(x) / -f(x)
-        # # print h
-        # # print G.dot(x)
-        # rDual = _rDualFunc(x, grad, z, G, y, A)
-        # RHS = rDual
-        # if G is not None:
-        #     s = h - G.dot(x)
-        #     Gs = G/s
-        #     zs = z/s
-
-        #     # now find the matrix/vector of our qp
-        #     #Haug += numpy.einsum('ji,ik->jk',G.T, G*zs)
-        #     rCent = _rCentFunc(z, s, t)
-        #     RHS = numpy.append(RHS,rCent,axis=0)
-
-        # ## solving the QP to get the descent direction
-        # if A is not None:
-        #     bTemp = b - A.dot(x)
-        #     g += A.T.dot(y)
-
-        #     rPri = _rPriFunc(x, A, b)
-        #     RHS = numpy.append(RHS,rPri,axis=0)
-
-        #     if G is not None:
-        #         LHS = scipy.sparse.bmat([
-        #             [Haug, G.T, A.T],
-        #             [G*-z, scipy.sparse.diags(s.ravel(),0),None],
-        #             [A, None, None]
-        #         ],'csc')
-        #         if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-        #             deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
-        #         else:
-        #             deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
-        #         # print deltaTemp
-        #         deltaX = deltaTemp[:p]
-        #         deltaZ = deltaTemp[p:-len(A)]
-        #         deltaY = deltaTemp[-len(A):]
-        #     else:
-        #         LHS = scipy.sparse.bmat([
-        #             [Haug, A.T],
-        #             [A, None]
-        #         ],'csc')
-        #         if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-        #             deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
-        #         else:
-        #             deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
-        #         deltaX = deltaTemp[:p]
-        #         deltaY = deltaTemp[p::]
-
-        # else:
-        #     if G is not None:
-        #         LHS = scipy.sparse.bmat([
-        #             [Haug, G.T],
-        #             [G*-z, scipy.sparse.diags(s.ravel(),0)],
-        #         ],'csc')
-        #         deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
-        #         deltaX = deltaTemp[:p]
-        #         deltaZ = deltaTemp[p::]
-        #     else:
-        #         deltaX = scipy.linalg.solve(H,-RHS).reshape(len(RHS),1)
-
-        # # store the information for the next iteration
-        # oldFx = fx
-        # oldGrad = gOrig.copy()
-
-        # if G is None:
-        #     # print "obj"
-        #     maxStep = 1
-        #     barrierFunc = _logBarrier(x, func, t, G, h)
-        #     lineFunc = lineSearch(maxStep, x, deltaX, barrierFunc)
-        #     searchScale = deltaX.ravel().dot(g.ravel())
-        # else:
-        #     maxStep = _maxStepSize(z, deltaZ, x, deltaX, G, h)
-        #     lineFunc = residualLineSearch(step, x, deltaX,
-        #                                       grad, t,
-        #                                       z, deltaZ, G, h,
-        #                                       y, deltaY, A, b)
-        #     searchScale = -lineFunc(0.0)
-
-        # # perform a line search.  Because the minimization routine
-        # # in scipy can sometimes be a bit weird, we assume that the
-        # # exact line search can sometimes fail, so we do a
-        # # back tracking line search if that is the case
-        # step, fx =  exactLineSearch(maxStep, lineFunc)
-        # if fx >= oldFx or step <= 0:
-        #     step, fx =  backTrackingLineSearch(maxStep, lineFunc, searchScale, oldFx)
-
-        # if z is not None:
-        #     z += step * deltaZ
-        # if y is not None:
-        #     y += step * deltaY
-
-        # x += step * deltaX
-#         print "deltaX"
-#         print deltaX
-#         print "deltaZ"
-#         print deltaZ
         i += 1
         dispObj.d(i, x , fx, deltaX.ravel(), g.ravel(), step)
 
@@ -307,16 +215,12 @@ def _solveKKTAndUpdatePDC(x, func, grad, fx, g, gOrig, Haug, z, G, h, y, A, b, t
     RHS = rDual
     if G is not None:
         s = h - G.dot(x)
-        Gs = G/s
-        zs = z/s
-
         # now find the matrix/vector of our qp
         rCent = _rCentFunc(z, s, t)
         RHS = numpy.append(RHS, rCent, axis=0)
 
     ## solving the QP to get the descent direction
     if A is not None:
-        bTemp = b - A.dot(x)
         g += A.T.dot(y)
 
         rPri = _rPriFunc(x, A, b)

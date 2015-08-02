@@ -23,9 +23,8 @@ __all__ = [
 
 import copy
 
-import scipy.spatial
+import scipy.spatial, scipy.linalg
 import numpy
-import numpy.linalg
 
 import cvxopt # the base.matrix class
 from cvxopt import matrix, spdiag, log, mul, div # random shit
@@ -375,7 +374,7 @@ def findAnalyticCenter(G, h, full_output=False):
     else:
         return numpy.array(sol['x']).flatten()
 
-def findAnalyticCenterBox(box=None, A=None, b=None, full_output=False):
+def findAnalyticCenterBox(box=None, G=None, h=None, full_output=False):
     '''
     Find the analytic center of a polygon given lower and upper bounds
     in matrix form and inequalities Gx<=h

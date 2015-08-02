@@ -73,8 +73,8 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
 
 def exactLineSearch(stepMax, func):
     '''
-    Performes an exact line search that minimizes the input function
-    suject to the maximum step size.
+    Performs an exact line search that minimizes the input function
+    subject to the maximum step size.
 
     Parameters
     ----------
@@ -95,7 +95,7 @@ def exactLineSearch(stepMax, func):
                                          method='brent',
                                          bracket=(1e-12,stepMax),
                                          options={'maxiter':20})
-    #print res 
+        # print res 
         return float(res['x']), float(res['fun'])
     except Exception:
         return 2.0, numpy.inf
@@ -144,5 +144,4 @@ def sufficientNewtonDecrement(deltaX, grad):
         return True
     else:
         return False
-
-
+    

@@ -17,7 +17,7 @@ from polyOperation import triangulatePolygon, divideGivenPolygon
 from polyOperation import identifyPotentialOptimalPolygonPareto
 from polyOperation import PolygonObj
 
-from pygotools.optutils.consMani import addBoxToInequality
+from pygotools.optutils.consMani import addBoxToInequality, addLBUBToInequality
 
 from directUtil import IdConditionType, findLowestObjIndex, plotDirectPolygon
 
@@ -91,7 +91,7 @@ class direct(object):
             self._rectType = False
             # and we go and find the set of inequalities that define our
             # convex polygon
-            self._G,self._h = addBoxToInequalityLBUB(lb, ub, A, b)
+            self._G,self._h = addLBUBToInequality(lb, ub, A, b)
 
         self._objList = None
 

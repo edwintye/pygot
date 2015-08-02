@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy
 
-from pygotools.optutils.consMani import *
+from pygotools.optutils.consMani import lbubToBox, addBoxToInequality
 
 lb = -numpy.ones(2)
 ub = numpy.ones(2)

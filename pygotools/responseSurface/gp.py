@@ -3,6 +3,7 @@ __all__ = ['GP']
 
 import numpy
 import scipy.spatial.distance as ssd
+import scipy.linalg
 import scipy.stats
 import pygotools.responseSurface
 
