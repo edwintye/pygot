@@ -8,7 +8,8 @@ from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 
-from .convexUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _setup, _rDualFunc, _checkInitialValue
+from .ipUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _rDualFunc
+from .convexUtil import _checkInitialValue,  _setup
 from .approxH import *
 
 import numpy

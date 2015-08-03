@@ -109,7 +109,7 @@ def _checkFunction2DArray(func,x):
     except Exception:
         fx = numpy.nan
     
-    if numpy.any(numpy.isnan(fx)) or numpy.any(numpy.isinf(fx)):
+    if numpy.any(numpy.isnan(fx)) or numpy.any(numpy.isinf(fx)) or fx.size==0:
         funcOrig = func
         def aFunc():
             def bFunc(y):

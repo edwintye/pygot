@@ -41,7 +41,7 @@ A = numpy.ones((1,len(theta)))
 b = numpy.ones(1) * len(theta)
 
 
-from pygotools.convex import sqp, ip, ipPDC
+from pygotools.convex import sqp, ip, ipPDC, ipPD
 
 ## interior point interface
 
@@ -58,11 +58,12 @@ from pygotools.convex import sqp, ip, ipPDC
 
 xhat, output = ip(rosen,
                   rosen_der,
+                  rosen_hess,
                   x0=theta,
                   lb=lb, ub=ub,
                   G=None, h=None,
                   A=None, b=None,
-                  maxiter=50,
+                  maxiter=100,
                   method='pdc',
                   disp=3, full_output=True)
 

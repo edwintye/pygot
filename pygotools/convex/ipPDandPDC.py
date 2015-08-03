@@ -10,8 +10,9 @@ from pygotools.optutils.disp import Disp
 from pygotools.optutils.checkUtil import _checkFunction2DArray
 from pygotools.gradient.finiteDifference import forward 
 from .approxH import *
-from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
-from .convexUtil import _rDualFunc, _rCentFunc, _rCentFunc2, _rCentFuncCorrect, _rPriFunc
+from .convexUtil import _setup, _checkInitialValue
+from .ipUtil import _logBarrier, _findInitialBarrier, _surrogateGap
+from .ipUtil import _rDualFunc, _rCentFunc, _rCentFunc2, _rCentFuncCorrect, _rPriFunc
 
 import numpy
 
@@ -31,7 +32,7 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
     z, G, h, y, A, b = _setup(lb, ub, G, h, A, b)
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
-    
+
     func = _checkFunction2DArray(func, x)
     
     if hessian is None:
