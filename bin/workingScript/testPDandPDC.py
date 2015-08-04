@@ -32,9 +32,9 @@ from pygotools.convex import ip, ipPDC
 
 xhat, output = ip(gp.negLogLike,
                    gp.gradient,#gp.hessian,
-                   method='pd',
+                   method='bar',
                    x0=theta,
-                   maxiter=40,
+                   maxiter=100,
                    lb=boxArray[:,0], ub=boxArray[:,1],
                    disp=3, full_output=True)
 
@@ -47,7 +47,7 @@ xhat, output = ipPDC(gp.negLogLike,
                      lb=boxArray[:,0], ub=boxArray[:,1],
                      G=None, h=None,
                      A=None, b=None,
-                     maxiter=100,
+                     maxiter=40,
                      disp=5, full_output=True)
 
 print output

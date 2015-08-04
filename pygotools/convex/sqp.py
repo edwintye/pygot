@@ -33,22 +33,24 @@ def sqp(func, grad=None, hessian=None, x0=None,
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
 
-    if hessian is None:
-        approxH = BFGS
-    else:
-        hessian = _checkFunction2DArray(hessian, x)
-    if grad is None:
-        def finiteForward(x,func,p):
-            def finiteForward1(x):
-                return forward(func,x.ravel())
-            return finiteForward1
-        grad = finiteForward(x,func,p)
-    else:
-        grad = _checkFunction2DArray(grad, x)
+    func, grad, hessian, approxH = _checkFuncGradHessian(x, func, grad, hessian)
+#     if hessian is None:
+#         approxH = BFGS
+#     else:
+#         hessian = _checkFunction2DArray(hessian, x)
+#     if grad is None:
+#         def finiteForward(x,func,p):
+#             def finiteForward1(x):
+#                 return forward(func,x.ravel())
+#             return finiteForward1
+#         grad = finiteForward(x,func,p)
+#     else:
+#         grad = _checkFunction2DArray(grad, x)
         
     g = numpy.zeros((p,1))
     H = numpy.zeros((p,p))
 
+    fx = func(x)
     oldFx = numpy.inf
     oldOldFx = numpy.inf
     oldGrad = None
@@ -57,8 +59,8 @@ def sqp(func, grad=None, hessian=None, x0=None,
     # print x
     # print func(x)
     
-    func = _checkFunction2DArray(func, x)
-    fx = func(x)
+    # func = _checkFunction2DArray(func, x)
+    
     
     # print func(x)
     

@@ -58,15 +58,15 @@ from pygotools.convex import sqp, ip, ipPDC, ipPD
 
 xhat, output = ip(rosen,
                   rosen_der,
-                  rosen_hess,
                   x0=theta,
                   lb=lb, ub=ub,
                   G=None, h=None,
                   A=None, b=None,
                   maxiter=100,
-                  method='pdc',
-                  disp=3, full_output=True)
+                  method='bar',
+                  disp=5, full_output=True)
 
+print output
 
 # xhat, output = ip(rosen,
 #                   rosen_der,
@@ -83,7 +83,8 @@ xhat, output = ipPDC(rosen,
                      lb=lb, ub=ub,
                      G=None, h=None,
                      A=None, b=None,
-                     maxiter=1000,
-                     disp=3, full_output=True)
+                     maxiter=1,
+                     disp=5, full_output=True)
 
 
+# print output

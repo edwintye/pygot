@@ -35,7 +35,6 @@ def ipPDC(func, grad, hessian=None, x0=None,
    
     func, grad, hessian, approxH = _checkFuncGradHessian(x, func, grad, hessian)
     fx = func(x)
-    print "new version"
     
     g = numpy.zeros((p,1))
     gOrig = g.copy()
@@ -89,8 +88,9 @@ def ipPDC(func, grad, hessian=None, x0=None,
                                                                           A, b, t)
 
         i += 1
-        dispObj.d(i, x , fx, deltaX.ravel(), g.ravel(), step)
+        dispObj.d(i, x , func(x), deltaX.ravel(), g.ravel(), step)
 
+        feasible = False
         if G is not None:
             feasible, t = _checkDualFeasible(x, z, G, h, y, A, b, grad, m, mu)
         else:

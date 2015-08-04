@@ -1,3 +1,4 @@
+from _ctypes_test import func
 __all__ = [
     'lineSearch',
     'exactLineSearch',
@@ -32,11 +33,13 @@ def lineSearch(x, deltaX, func):
         return func(x + step * deltaX)
     return F
 
-def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
+def backTrackingLineSearch(step, func, s=None, alpha=0.1, beta=0.8):
     '''
     Back tracking line search with t as the maximum.  Continues
     until :math:`f(t) <= f(0) + \alpha t s` where :math:`s` is
-    the scale which measures the expected decrease
+    the scale which measures the expected decrease.  If : math:`s`
+    is None, then the stopping condition becomes
+    :math:`f(t) <= f(0)(1-\alpha t)` instead.
 
     Parameters
     ----------
@@ -63,12 +66,23 @@ def backTrackingLineSearch(step, func, s, alpha=0.1, beta=0.8):
     fx = func(0)
     fdeltaX = func(step)
     # print "LHS = "+str(fdeltaX)+ " and RHS = " +str(fx + alpha * step * s)
-    while fdeltaX > fx + alpha * step * s:
-        # print "LHS = "+str(fdeltaX)+ " and RHS = " +str(fx + alpha * step * s)
-        step *= beta
-        fdeltaX = func(step)
-        if step <= 1e-16:
-            return step, fdeltaX
+    
+    if s is None:
+        RHS = (1-alpha*step) * fx
+    else:
+        RHS = fx + alpha * step * s
+    
+    while fdeltaX > RHS:
+            step *= beta
+                
+            if step <= 1e-16:
+                return step, fdeltaX
+            fdeltaX = func(step)
+            if s is None:
+                RHS = (1-alpha*step) * fx
+            else:
+                RHS = fx + alpha * step * s
+            
     return step, fdeltaX
 
 def exactLineSearch(stepMax, func):
@@ -90,6 +104,7 @@ def exactLineSearch(stepMax, func):
     fx: float
         f(x) evaluated at the output step size
     '''
+    
     try:
         res = scipy.optimize.minimize_scalar(func,
                                          method='brent',
@@ -129,9 +144,17 @@ def exactLineSearch2(stepMax, func, searchScale, oldFx):
     # print "fx = "+str(fx)
     # print "oldFx = "+str(oldFx)
     # print "step = " +str(step)
-    if step>stepMax or step<=1e-15 or fx>=oldFx:
+    backTrack = False
+    if step>stepMax or step<=1e-15: 
+        backTrack = True
+    elif oldFx is not None:
+            if fx>=oldFx:
+                backTrack = True
+    else:
+        pass
         # print "back track"
         # print "with search scale"+str(searchScale)
+    if backTrack:
         step, fx = backTrackingLineSearch(stepMax,
                                           func,
                                           searchScale)
