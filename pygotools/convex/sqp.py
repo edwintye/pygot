@@ -10,11 +10,11 @@ from pygotools.optutils.checkUtil import _checkFunction2DArray
 from pygotools.gradient.finiteDifference import forward
 from .approxH import BFGS
 
-from .convexUtil import _setup, _checkInitialValue
+from .convexUtil import _setup, _checkInitialValue, _checkFuncGradHessian
 
 import numpy
 
-EPSILON = 1e-6
+EPSILON = 1e-8
 
 def sqp(func, grad=None, hessian=None, x0=None,
         lb=None, ub=None,
@@ -32,6 +32,8 @@ def sqp(func, grad=None, hessian=None, x0=None,
     z, G, h, y, A, b = _setup(lb, ub, G, h, A, b)
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
+    
+    # print hessian(x.ravel())
 
     func, grad, hessian, approxH = _checkFuncGradHessian(x, func, grad, hessian)
 #     if hessian is None:
@@ -58,12 +60,10 @@ def sqp(func, grad=None, hessian=None, x0=None,
     deltaX = numpy.zeros((p,1))
     # print x
     # print func(x)
-    
-    # func = _checkFunction2DArray(func, x)
-    
-    
-    # print func(x)
-    
+        
+    output = dict()
+    if disp is None:
+        disp = 0
     dispObj = Disp(disp)
     i = 0
     innerI = 0
@@ -71,24 +71,27 @@ def sqp(func, grad=None, hessian=None, x0=None,
     radius = 1.0
 
     if hessian is None:
-        H = numpy.eye(len(x))
+        H = numpy.eye(p)
 
     while maxiter>=i:
 
-        g[:] = grad(x.ravel()).reshape(p,1)
+        g = grad(x).reshape(p,1)
 
         if hessian is None:
-            if oldGrad is not None:
+            if oldGrad is None:
+                H = numpy.eye(p)
+            else:
                 if update: # update is always true for line search
                     diffG = (g - oldGrad).ravel()
                     H = approxH(H, diffG, step * deltaX.ravel())
         else:
-            H = hessian(x.ravel())
-
+            H = hessian(x)
+       
         if method=='trust':
             if hessian is None:
-                # we assume that the hessian is always a PSD
-                x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegion(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
+                # we assume that the Hessian is always a PSD
+                # x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegion(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
+                x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegionSOCP(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
             else:
                 x, update, radius, deltaX, z, y, fx, oldFx, oldGrad, innerIter = _updateTrustRegionSOCP(x, fx, oldFx, deltaX, p, radius, g, oldGrad, H, func, grad, z, G, h, y, A, b)
         else:
@@ -108,20 +111,25 @@ def sqp(func, grad=None, hessian=None, x0=None,
         # print h - G.dot(x)
         # print "z"
         # print numpy.array(qpOut['z']).ravel()
+        if update:
+            if sufficientNewtonDecrement(deltaX.ravel(),g.ravel()):
+                output['message'] = "Sufficient Newton decrement smaller than epsilon"
+                break
         
-        if sufficientNewtonDecrement(deltaX.ravel(),g.ravel()):
-            break
-        
-        if abs(fx-oldFx)<=EPSILON:
-            break
+            if abs(fx-oldFx)<=EPSILON:
+                output['message'] = "Change in objective function smaller than epsilon"
+                break
+        else:
+            if radius<=EPSILON:
+                output['message'] = "Radius is too small = "+str(radius)
+                break
 
     # TODO: full_output- dual variables
-    if full_output:
-        output = dict()
-        
+    if full_output:        
         output['H'] = H
         output['g'] = g.flatten()
 
+        output['radius'] = radius
         output['fx'] = fx
         output['iter'] = i
         output['innerIter'] = innerI
@@ -131,7 +139,7 @@ def sqp(func, grad=None, hessian=None, x0=None,
         if A is not None:
             output['y'] = y.flatten()
 
-        return x, output
+        return x.flatten(), output
     else:
-        return x
+        return x.flatten()
 

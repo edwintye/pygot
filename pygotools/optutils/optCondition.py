@@ -74,9 +74,10 @@ def backTrackingLineSearch(step, func, s=None, alpha=0.1, beta=0.8):
     
     while fdeltaX > RHS:
             step *= beta
-                
+    
             if step <= 1e-16:
                 return step, fdeltaX
+            
             fdeltaX = func(step)
             if s is None:
                 RHS = (1-alpha*step) * fx

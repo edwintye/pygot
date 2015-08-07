@@ -15,7 +15,7 @@ from .ipUtil import _logBarrier, _findInitialBarrier, _surrogateGap, _checkDualF
 from .ipUtil import _rDualFunc, _rCentFunc, _rCentFunc2, _rCentFuncCorrect, _rPriFunc, _deltaZFunc
 from .ipUtil import _residualLineSearchPD, _residualLineSearchPDC
 from .ipUtil import  _findStepSize, _solveSparseAndRefine, _updateVar
-from .ipUtil import  _updateVarSimultaneous
+from .ipUtil import  _updateVarSimultaneous, _dualityGap
 
 import numpy
 import copy
@@ -55,8 +55,10 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
     deltaX = None
     deltaY = None
     deltaZ = None
-    H = numpy.zeros((p,p))
+    H = scipy.sparse.eye(len(x), format='csc')
+    # print "Type of matrix = "+str(type(H))
 
+    output = dict()
     dispObj = Disp(disp)
     i = 0
     mu = 5.0
@@ -68,31 +70,26 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
     # of the KKT system, there are times where we may want to
     # give the descent a nudge
     #step0 = 1.0  # back tracking search step maximum value
-    
+        
     if G is not None:
         s = h - G.dot(x)
         z = 1.0/s
         m = G.shape[0]
         eta = _surrogateGap(x, z, G, h, y, A, b)
         t = mu * m / eta
+        # print "eta="+str(eta)
 
     while maxiter>i:
-        # print "set of fx"
-        # print oldOldFx
-        # print oldFx
-        # print fx
-        # print "end of fx"
-        # print type(fx)
-
-
         gOrig[:] = grad(x).reshape(p,1)
         g[:] = gOrig.copy()
         
         if hessian is None:
             if oldGrad is None:
-                H = numpy.eye(len(x))
+                H = scipy.sparse.eye(len(x), format='csc')
             else:
                 diffG = (gOrig - oldGrad).ravel()
+                # print diffG
+                # print deltaX.ravel()
                 H = approxH(H, diffG, step * deltaX.ravel())
         else:
             H = hessian(x)
@@ -102,47 +99,74 @@ def ipPDandPDC(func, grad, hessian=None, x0=None,
 #             H += numpy.eye(p) * min(eigenVal)+1e-8
                 
         oldOldFxTemp = oldFx
+        # print "fx = " +str(fx)+ " and oldFx = "+str(oldFx)+ " and oldOldFx = "+str(oldOldFx)
 
         try:
+            oldX = x.copy()
+            if G is not None:
+                oldZ = z.copy()
+            
             x, y, z, fx, step, oldFx, oldGrad, deltaX = updateFunc(x, func, grad,
                                                                    fx, oldFx, oldOldFx,
                                                                    g, gOrig,
                                                                    H,
                                                                    z, G, h,
                                                                    y, A, b, t, method)
+            
+            # print g
+            # print z
+#             print x-oldX
+#             print z-oldZ
+#             print H
+#             print g
+            
+            if step<=1e-15:
+                if hessian is None:
+                    H = scipy.sparse.eye(len(x), format='csc')
+                    oldGrad = None
         except Exception as e:
             print "Positive descent direction, reset Hessian"
+            # print hessian
             if hessian is None:
-                H = numpy.eye(len(x))
+                H = scipy.sparse.eye(len(x), format='csc')
             else:
                 raise Exception("User supplied Hessian is not PSD")
             x, y, z, fx, step, oldFx, oldGrad, deltaX = updateFunc(x, func, grad,
                                                                    fx, oldFx, oldOldFx,
                                                                    g, gOrig,
-                                                                   scipy.sparse.eye(p),
+                                                                   H,
                                                                    z, G, h,
                                                                    y, A, b, t, method)
 
         oldOldFx = oldOldFxTemp
-
         
         i += 1
         dispObj.d(i, x , func(x), deltaX.ravel(), g.ravel(), step)
-        print "gap = "+str(_surrogateGap(x, z, G, h, y, A, b))+ " and t = "+str(t)
+        # print "step = "+str(step)+ ", gap = "+str(_surrogateGap(x, z, G, h, y, A, b))+ " and t = "+str(t)+ "\n"
 
         feasible = False
         if G is not None:
             feasible, t = _checkDualFeasible(x, z, G, h, y, A, b, grad, m, mu)
+            output['message'] = 'Dual feasibility less than epsilon'
         else:
-            if abs(fx-oldFx)<=EPSILON:
+            if oldFx is not None:
+                if abs(fx-oldFx)<=EPSILON:
+                    output['message'] = 'Absolute change in objective function less than epsilon'
+                    break
+            elif numpy.all(abs(oldX-x)<=1e-8):
+                output['message'] = 'Change in x less than epsilon'
                 break
+
+        dGap = _dualityGap(func, x,
+                           z, G, h,
+                           y, A, b)
+        # print "dual gap = "+str(dGap)+ ", surrogate gap = "+str(_surrogateGap(x, z, G, h, y, A, b))+ ", m/t = " +str(m/t)+ ", step = "+str(step)+"\n"
 
         if feasible:
             break
-
+        
     # TODO: full_output- dual variables
     if full_output:
-        output = dict()
         output['t'] = t
 
         if G is not None:
@@ -178,78 +202,19 @@ def _solveKKTAndUpdatePD(x, func, grad, fx, oldFx, oldOldFx, g, gOrig, Haug, z, 
     ## TODO: there are slight numerical differences between PD and PDC which in turns leads to
     ## a non-convergence pd implementation
     if method=='pd':
-        deltaX, deltaZ, deltaY  = _solveKKTSystemPD(x, func, grad, g, Haug, z, G, h, y, A, b, t)
+        deltaX, deltaZ, deltaY  = _solveKKTSystemPD(x, func, grad, g.copy(), Haug.copy(), z, G, h, y, A, b, t)
     else:
         deltaX, deltaZ, deltaY = _solveKKTSystemPDC(x, func, grad, g, Haug, z, G, h, y, A, b, t)
  
+#     print deltaX
+#     print g
+#     print deltaX.ravel().dot(g.ravel())
     if deltaX.ravel().dot(g.ravel())>0:
+        # print HERE
         raise Exception("Positive descent direction")
 
-    # print "New"
-    # print deltaX
-    # print deltaZ
-
-    # deltaX1, deltaZ1, deltaY1 = _solveKKTSystemPDC(x, func, grad, g.copy(), Haug.copy(), z, G, h, y, A, b, t)
-
-    # if deltaZ is not None:
-    #     print "deltaZ, pd and pdc"
-    #     print numpy.append(deltaZ,deltaZ1,axis=1)
-    # print "deltaX, pd and pdc"
-    # print numpy.append(deltaX,deltaX1,axis=1)
-
-    # if deltaZ is not None:
-    #     print "deltaZ, pd and pdc"
-    #     print numpy.append(deltaZ,deltaZ-deltaZ1,axis=1)
-    # print "deltaX, pd and pdc"
-    # print numpy.append(deltaX,deltaX-deltaX1,axis=1)
-
-#      out = coneqp(matrix(Haug),matrix(g),matrix(G),matrix(h))
-#      print out['x']
-#      print z
-#      print scipy.linalg.solve(Haug,-g)
-#      print numpy.append(deltaX,deltaX1,axis=1)
-#  
-#      the only difference is in solving the linear system
     step, fx = _findStepSize(x, deltaX, z, deltaZ, G, h, y, deltaY, A, b, func, grad, t, g, fx, oldFx)
     x, y, z = _updateVar(x, deltaX, z, deltaZ, y, deltaY, step)
-    # print deltaX
-    # print step
-     
-#     if step<1e-15:
-#          switch to pure gradient update
-#         H = numpy.eye(len(x.ravel()))
-#         if method=='pd':
-#             deltaX, deltaY, deltaZ  = _solveKKTSystemPD(x, func, grad, g.copy(), H, z, G, h, y, A, b, t)
-#         else:
-#             deltaX, deltaY, deltaZ = _solveKKTSystemPDC(x, func, grad, g.copy(), H, z, G, h, y, A, b, t)
-#          
-#         step, fx = _findStepSize(x, deltaX, z, deltaZ, G, h, y, deltaY, A, b, func, grad, t, g, fx, oldFx)
-    
-    
-    # print "old"
-    # oldZ = copy.deepcopy(z)
-
-
-    # x, y, z, fx, step, oldFx, oldGrad, deltaX = _solveKKTAndUpdatePDC(x, func, grad,
-    #                                                                       fx, g, gOrig, Haug,
-    #                                                                       z, G, h, y,
-    #                                                                       A, b, t)
-
-    # print deltaX
-    # print step
-
-
-
-    # if z is not None:
-    #     z += step * deltaZ
-    # if y is not None:
-    #     y += step * deltaY
-        
-    # x += step * deltaX
-
-
-    # print deltaX
-    # print (z - oldZ)/step
 
     return x, y, z, fx, step, oldFx, oldGrad, deltaX
 
@@ -267,34 +232,6 @@ def _solveKKTSystemPD(x, func, grad, g, Haug, z, G, h, y, A, b, t):
         Haug += numpy.einsum('ji,ik->jk', G.T, G*zs)
         Dphi = Gs.sum(axis=0).reshape(p, 1)
         g += Dphi / t
-
-        # RHS = _rDualFunc(x, grad, z, G, y, A)
-        # rCent = _rCentFunc(z, s, t)
-        # g = g + sum(_rCentFunc(z, s, t))
-        # print G.T.dot(_rCentFunc(z, s, t)/s)
-
-        # g1 = _rDualFunc(x, grad, z, G, y, A) - G.T.dot(_rCentFunc(z, s, t)/s)
-
-        # now find the matrix/vector of our qp
-        # HaugOrig = Haug.copy()
-        # gOrig = g.copy()
-
-        # for i in range(len(z)):
-        #     HaugOrig += z[i]/s[i] * numpy.outer(G[i],G[i])
-
-        # DphiA = numpy.zeros(p)
-        # # print DphiA
-        # for i in range(len(z)):
-        #     # print G[i]/(s[i]*t)
-        #     DphiA += G[i]/(s.ravel()[i]*t)
-
-
-
-        # print DphiA.reshape(p,1) - Dphi
-        # print HaugOrig - Haug
-
-        # print scipy.linalg.solve(HaugOrig,-gOrig)
-        # print scipy.linalg.solve(Haug,-g)
 
     # find the solution to a Newton step to get the descent direction
     if A is not None:
@@ -360,15 +297,8 @@ def _solveKKTSystemPDC(x, func, grad, g, Haug, z, G, h, y, A, b, t):
             LHS = Haug
 
     deltaTemp = _solveSparseAndRefine(LHS, -RHS)
-    # print deltaTemp
-
-    # deltaX1, deltaZ1, deltaY1 =  _updateVarSimultaneous(numpy.zeros((deltaTemp.size,1)), deltaTemp.copy(), G, A)
-    # print deltaX1
-    # print deltaTemp
     
     deltaX = deltaTemp[:p]
-    # print deltaX
-
     if A is not None:
         if G is not None:
             deltaZ = deltaTemp[p:-len(A)]

@@ -3,6 +3,7 @@ import numpy
 from pygotools.optutils.consMani import addLBUBToInequality, feasiblePoint, feasibleStartingValue
 from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from .approxH import *
+from pygotools.gradient.finiteDifference import forward
 
 class InitialValueError(Exception):
     '''
@@ -61,13 +62,14 @@ def _checkInitialValue(x0, G, h, A, b):
 
 def _checkFuncGradHessian(x0, func, grad=None, hessian=None):
     func = _checkFunction2DArray(func, x0)
+    p = len(x0)
     
     if grad is None:
-        def finiteForward(x,func,p):
+        def finiteForward(func,p):
             def finiteForward1(x):
                 return forward(func,x.ravel())
             return finiteForward1
-        grad = finiteForward(x,func,p)
+        grad = finiteForward(func,p)
     else:
         grad = _checkFunction2DArray(grad,x0)
         
@@ -82,8 +84,9 @@ def _checkFuncGradHessian(x0, func, grad=None, hessian=None):
             approxH = DFP
         else:
             raise Exception("Input name of hessian is not recognizable")
+        hessian = None
     else:
-        hessian = _checkFunction2DArray(func, x0)
+        hessian = _checkFunction2DArray(hessian, x0)
         approxH = None
         
     return func, grad, hessian, approxH

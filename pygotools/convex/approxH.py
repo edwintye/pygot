@@ -30,11 +30,20 @@ def DFP(H, diffG, deltaX):
 
 def BFGS(H, diffG, deltaX):
     if numpy.all(diffG==0) or numpy.all(deltaX==0):
-        pass
+        return H
     else:
-        A1 = numpy.outer(diffG,diffG) / diffG.dot(deltaX)
-        a = H.dot(deltaX)
-        A2 = numpy.outer(a,a) / (deltaX.T.dot(a))
+        rho = 1/diffG.dot(deltaX)
+        if numpy.isinf(rho):
+            rho = 10000.0
+            
+        A1 = numpy.outer(diffG,diffG) * rho
+        a = H.dot(deltaX).T
+        # AA = numpy.outer(a,a)
+        # print a
+        # print deltaX
+        # AA2 = (deltaX.dot(a))
+        A2 = numpy.outer(a,a) / (deltaX.dot(a))
+        
         # print "diff G"
         # print diffG
         # print "delta X"
@@ -45,8 +54,14 @@ def BFGS(H, diffG, deltaX):
         # print A1
         # print "A2"
         # print A2
-        H += A1 - A2
-    return H
+        H1 = H + (A1-A2)
+        if numpy.any(scipy.linalg.eig(H1)[0]<=0):
+            # print "Positive descent direction"
+            # print diffG
+            # print deltaX
+            return H1
+        else:
+            return H1
 
 def SR1(H, diffG, deltaX):
     a = diffG - H.dot(deltaX)

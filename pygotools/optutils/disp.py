@@ -10,7 +10,8 @@ class Disp(object):
         #self._x(numpy.arange(5))
 
     def d(self, i, x, fx=None, deltaX=None, grad=None, step=None):
-        print str(i).ljust(5),
+        if self._level!=0:
+            print str(i).ljust(5),
         
         if self._level==0:
             pass
@@ -29,10 +30,14 @@ class Disp(object):
             self._deltaXGrad(deltaX.dot(grad))
             # print "inside step " +str(step)
             self._step(step)
-        print ""
+        elif self._level==None:
+            pass
+        
+        if self._level!=0:
+            print ""
 
     def _h(self):
-        if self._level==0:
+        if self._level==0 or self._level==None:
             pass
         elif self._level==1:
             print "iter  Parameters"

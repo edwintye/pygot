@@ -196,30 +196,35 @@ def _solveKKTAndUpdatePDC(x, func, grad, fx, g, gOrig, Haug, z, G, h, y, A, b, t
 
     return x, y, z, fx, step, oldFx, oldGrad, deltaX
 
-def _findStepSize(x, deltaX, z, deltaZ, G, h, y, deltaY, A, b, func, grad, t, g, fx, oldFx, wolfe=False):
+def _findStepSize(x, deltaX, z, deltaZ, G, h, y, deltaY, A, b, func, grad, t, g, fx, oldFx):
 
-    if G is None:
-        maxStep = 1
-        #barrierFunc = _logBarrier(func, t, G, h)
-        lineFunc = lineSearch(x, deltaX, func)
-        searchScale = deltaX.ravel().dot(g.ravel())
+    if G is None and A is None:
+        step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(func,
+                                                                        grad,
+                                                                        x.ravel(),
+                                                                        deltaX.ravel(),
+                                                                        g.ravel()
+                                                                        )
+        if step is None:
+            lineFunc = lineSearch(x, deltaX, func)
+            step, fx =  backTrackingLineSearch(step0, lineFunc, None, alpha=0.0001, beta=0.8)
     else:
-        maxStep = _maxStepSizePDC(z, deltaZ, x, deltaX, G, h)
+        if G is not None:
+            maxStep = _maxStepSizePDC(z, deltaZ, x, deltaX, G, h)
+        else:
+            maxStep = 1.0
         lineFunc = _residualLineSearchPDC(x, deltaX,
                                           grad, t,
                                           z, deltaZ, G, h,
                                           y, deltaY, A, b)
         # searchScale = -lineFunc(0.0)
         searchScale = None
-
-    # perform a line search.  Because the minimization routine
-    # in scipy can sometimes be a bit weird, we assume that the
-    # exact line search can sometimes fail, so we do a
-    # back tracking line search if that is the case
-    if wolfe:
-        step, fc, gc, fx, oldFx, ns = scipy.optimize.line_search(func, grad, x, deltaX, g)
-    step, fx = exactLineSearch2(maxStep, lineFunc, searchScale, oldFx)
-
+        # perform a line search.  Because the minimization routine
+        # in scipy can sometimes be a bit weird, we assume that the
+        # exact line search can sometimes fail, so we do a
+        # back tracking line search if that is the case
+        step, fx = exactLineSearch2(maxStep, lineFunc, searchScale, oldFx)
+    
     return step, fx
 
 def _solveSparseAndRefine(A,b):
@@ -233,6 +238,10 @@ def _solveSparseAndRefine(A,b):
     else:
         sparseSolver = False
 
+#     print A
+#     print type(A)
+#     print "is sparse = "+str(sparseSolver)
+    
     i = 0
     if sparseSolver:
         solve = scipy.sparse.linalg.factorized(A)

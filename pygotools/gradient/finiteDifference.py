@@ -200,7 +200,7 @@ def central(f, x, epsilon=None, *args):
     return grad
 
 
-def richardsonExtrapolation(f, x, epsilon, *args):
+def richardsonExtrapolation(f, x, epsilon=None, *args):
     """
     Richardson extrapolation under forward finite-difference
     
@@ -212,11 +212,7 @@ def richardsonExtrapolation(f, x, epsilon, *args):
     x: array like
 
     epsilon: array like
-        epsilon used to compute the finite difference.  Does not 
-        have a default value because it is only allowed in 
-        python3 but not python2 :( WTF!  So we also allow the
-        use of `None` here to force it to make its own mind
-        up!! (aka default value)
+        epsilon used to compute the finite difference.
 
     \*args: args, optional
         Any other arguments that are to be passed to `f`

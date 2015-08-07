@@ -43,7 +43,7 @@ def trustRegion(func, grad, hessian=None, x0=None,
         elif hessian.lower()=='dfp':
             approxH = DFP
         else:
-            raise Exception("Input name of hessian is not recognizable")
+            raise Exception("Input name of Hessian is not recognizable")
         hessian = None
 
     if method is None:
@@ -52,7 +52,7 @@ def trustRegion(func, grad, hessian=None, x0=None,
         if method.lower()=='exact':
             trustMethod = trustExact
         else:
-            raise Exception("Input name of hessian is not recognizable")
+            raise Exception("Input name of Hessian is not recognizable")
 
     fx = None
     oldGrad = None
@@ -163,7 +163,7 @@ def trustExact(x, g, H, radius=1.0, maxiter=10):
             oldFx = fx
             fx = 1.0/radius - 1.0/a
             if fx<=0.0 or abs(oldFx-fx)<=0.1:
-                # we are goint to force another iteration anyway just to refine
+                # we are going to force another iteration anyway just to refine
                 # it because we have
                 qk = scipy.linalg.solve_triangular(R, pk, trans='T')
                 tau += (a/scipy.linalg.norm(qk))**2  * (a - radius) / radius
@@ -194,7 +194,6 @@ def trustSubspace(x, g, H, radius=1.0, maxiter=10):
     
     pS2 = -g.copy()
     rhs = numpy.append(pS1,pS2,axis=0)
-        
 
     for i in range(maxiter):
         try:
