@@ -8,7 +8,9 @@ from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 
-from .convexUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _setup, _rDualFunc, _checkInitialValue
+from .ipUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier, _dualityGap, _rDualFunc
+from .ipUtil import _solveSparseAndRefine, _residualLineSearchPDC
+from .convexUtil import _checkInitialValue,  _setup, _checkFuncGradHessian
 from .approxH import *
 
 import numpy
@@ -33,69 +35,62 @@ def ipBar(func, grad, hessian=None, x0=None,
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
 
-    if hessian is None:
-        approxH = BFGS
-    elif type(hessian) is str:
-        if hessian.lower()=='bfgs':
-            approxH = BFGS
-        elif hessian.lower()=='sr1':
-            approxH = SR1
-        elif hessian.lower()=='dfp':
-            approxH = DFP
-        else:
-            raise Exception("Input name of hessian is not recognizable")
-        hessian = None
-    else:
-        hessian = _checkFunction2DArray(hessian, x)
-
-    if grad is None:
-        def finiteForward(x,func,p):
-            def finiteForward1(x):
-                return forward(func,x.ravel())
-            return finiteForward1
-        grad = finiteForward(x,func,p)
-    else:
-        grad = _checkFunction2DArray(grad, x)
-
+    func, grad, hessian, approxH = _checkFuncGradHessian(x, func, grad, hessian)
+    
     if G is not None:
         m = G.shape[0]
     else:
         m = 1
 
     fx = None
+    deltaY = None
+    deltaZ = None
     oldFx = None
     oldOldFx = None 
     oldGrad = None
+    oldX = None
+    barSlope = None
     deltaX = numpy.zeros((p,1))
     g = numpy.zeros((p,1))
     H = numpy.zeros((p,p))
     Haug = numpy.zeros((p,p))
 
+    output = dict()
+    if disp is None:
+        disp = 0
     dispObj = Disp(disp)
-    i = 0
     t = 0.01
-    mu = 20.0
+    mu = 10.0
     step0 = 1.0  # back tracking search step maximum value
     step = 0.0
+    dGap = None  # duality gap
+
+    if G is not None:
+        s = h - G.dot(x)
+        Gs = G/s
+        Dphi = Gs.sum(axis=0).reshape(p,1)
+        t = _findInitialBarrier(grad(x).reshape(p,1),Dphi,A)
+        # print "Initial barrier = "+str(t)
 
     j = 0
+    i = 0
     while maxiter>=j:
-        oldFx = numpy.inf
         # define the barrier function given t.  Note that
         # t is adjusted at each outer iteration
         barrierFunc = _logBarrier(func, t, G, h)
-        if j==0:
-            fx = barrierFunc(x)
-            #print "barrier = " +str(fx)
+        #if j==0:
+        fx = barrierFunc(x)
+    
+        if j!=0:
+            oldFx = barrierFunc(oldX)
+            oldOldFx = None
+            
+        #else:
+            
         update = True
-        #while (abs(fx-oldFx)/fx)>=rtol and abs(fx-oldFx)>=atol:
-        # for i in range(1):
+        numUpdate = 0
         while update:
-            # print abs(fx-oldFx)
-            # print abs(fx-oldFx)/fx
-            # print fx
-            # print oldFx
-            gOrig = grad(x.ravel()).reshape(p,1)
+            gOrig = grad(x).reshape(p,1)
 
             if hessian is None:
                 if oldGrad is None:
@@ -104,7 +99,7 @@ def ipBar(func, grad, hessian=None, x0=None,
                     diffG = numpy.array(gOrig - oldGrad).ravel()
                     H = approxH(H, diffG, step * deltaX.ravel())
             else:
-                H = hessian(x.ravel())
+                H = hessian(x)
 
             ## standard log barrier
             if G is not None:
@@ -112,14 +107,10 @@ def ipBar(func, grad, hessian=None, x0=None,
                 Gs = G/s
                 s2 = s**2
                 Dphi = Gs.sum(axis=0).reshape(p,1)
-                if j==0:
-                    t = _findInitialBarrier(gOrig,Dphi,A)
-                    # print "initial barrier = " +str(t)
-                    # print "fake barrier = "+str(_findInitialBarrier(gOrig,Dphi,A))
-                
+                # if j==0:
+                #     t = _findInitialBarrier(grad(x).reshape(p,1),Dphi,A)
                 Haug = t*H + numpy.einsum('ji,ik->jk',G.T, G/s2)
                 g = t*gOrig + Dphi
-
             else:
                 Haug = t*H
                 g = t*gOrig
@@ -127,80 +118,115 @@ def ipBar(func, grad, hessian=None, x0=None,
         ## solving the QP to get the descent direction
             if A is not None:
                 # re-adjust the bounds
-                bTemp = b - A.dot(x)
+                bTemp = A.dot(x) - b
                 LHS = scipy.sparse.bmat([
                                          [Haug,A.T],
                                          [A,None]
                                          ], 'csc')
-                RHS = numpy.append(g,-bTemp,axis=0)
-                if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-                    deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
-                else:    
-                    deltaTemp = scipy.sparse.linalg.spsolve(LHS,-RHS).reshape(len(RHS),1)
-
-                deltaX = deltaTemp[:p]
-                y = deltaTemp[p::]
+                RHS = numpy.append(g, bTemp, axis=0)
             else:
-                deltaX = scipy.linalg.solve(Haug,-g)
+                LHS = Haug
+                RHS = g
+            # finish setup
+            deltaTemp = _solveSparseAndRefine(LHS, -RHS)
+            deltaX = deltaTemp[:p]
+            if A is not None:
+                y = deltaTemp[p::]
+                # deltaY = deltaTemp[p::]
 
-            oldOldFxTemp = oldFx
+            oldOldFx = oldFx
             oldFx = fx
+
+            # oldOldFxTemp = oldFx
+            # oldFx = fx
             oldGrad = gOrig
+            oldX = x.copy()
 
-            lineFunc = lineSearch(x, deltaX, barrierFunc)
-            #step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-
-            # step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), alpha=0.0001,beta=0.8)
-            
-            barrierGrad = _logBarrierGrad(func, gOrig, t, G, h)
-            step, fc, gc, fx, oldFx, new_slope = scipy.optimize.line_search(barrierFunc,
+            if A is None:
+                lineFunc = lineSearch(x, deltaX, barrierFunc)
+                barrierGrad = _logBarrierGrad(func, gOrig, t, G, h)
+                # print "fx = " +str(fx)+ " and oldFx = "+str(oldFx)+ " and oldOldFx = "+str(oldOldFx)
+                step, fc, gc, fx, oldFx, barSlope = scipy.optimize.line_search(barrierFunc,
                                                                             barrierGrad,
                                                                             x.ravel(),
                                                                             deltaX.ravel(),
-                                                                            g.ravel(),
+                                                                            barSlope,  # g.ravel(),
                                                                             oldFx,
                                                                             oldOldFx
                                                                             )
-
-            # print "fx = " +str(fx)
-            # print "step= " +str(step)
-            # if step is not None:
-                # print "step = "+str(step)+ " with fx" +str(fx)+ " and barrier = " +str(barrierFunc(x + step * deltaX))
-                # print "s"
-                # print h - G.dot(x + step * deltaX)
-            if step is None:
-                # step, fx = exactLineSearch2(step0, lineFunc, deltaX.ravel().dot(g.ravel()), oldFx)
-                step, fx =  backTrackingLineSearch(step0, lineFunc, deltaX.ravel().dot(g.ravel()), alpha=0.0001,beta=0.8)
-                # print "fail wolfe = " +str(step)+ " maxStep = " +str(step0)                
-                # print "fx = " +str(fx)
-                # print "step= " +str(step)
-                update = False
                 
-            oldOldFx = oldOldFxTemp
+                if step is None:
+                    # if we know that it is hard to find a sufficient decrease, so low alpha
+                    step, fx =  backTrackingLineSearch(step0, lineFunc, None, alpha=0.0001, beta=0.8)
+                    # print "backtrack, with step = "+str(step)+ " and fx = " +str(barrierFunc(x+step*deltaX))+ " and oldFx = "+str(barrierFunc(x))+"\n"
+                    update = False
+            else:
+                lineFunc = _residualLineSearchPDC(x, deltaX,
+                                          grad, t,
+                                          z, deltaZ, None, h,
+                                          y, 0.0, A, b)
+                searchScale = None
+                step, fx = exactLineSearch2(1.0, lineFunc, searchScale, oldFx)
+                # y += step * deltaY
+                    
+            # oldOldFx = oldOldFxTemp
             x += step * deltaX
-            # print "stepped func = "+str(func(x))
             j += 1
             # dispObj.d(j, x.ravel() , fx, deltaX.ravel(), g.ravel(), step)
-            dispObj.d(j, x.ravel() , func(x.ravel()), deltaX.ravel(), g.ravel(), step)
-            # end of inner iteration
+            dispObj.d(j, x.ravel(), func(x.ravel()), deltaX.ravel(), g.ravel(), step)
+            if abs((oldFx-fx)/fx)<=EPSILON:
+                break
+
+            ## we don't want to waste too much time on solving the intermediate problem
+            if numUpdate<2:
+                numUpdate += 1
+            else:
+                break
+
+            ##########
+            ## end of inner iteration
+            ##########
         i += 1
         # obtain the missing Lagrangian multiplier
         if G is not None: 
             s = h - G.dot(x)
             z = 1.0 / (t * s)
         
-        if m/t < atol:
-            if sufficientNewtonDecrement(deltaX.ravel(),g.ravel()):
-                break
+        if G is not None or A is not None:
+            dGap = _dualityGap(func, x,
+                              z, G, h,
+                              y, A, b)
+            #print "dual gap = "+str(dGap)+ " and m/t = " +str(m/t)        
+        
+        if m/t < atol:# and dGap < atol:
+            if G is None:
+                if sufficientNewtonDecrement(deltaX.ravel(),gOrig.ravel()):
+                    output['message'] = "Sufficient Newton decrement smaller than epsilon"
+                    break
+            else:
+                # print scipy.linalg.norm(gOrig.ravel())**2
+                if (scipy.linalg.norm(gOrig.ravel())**2)<=EPSILON:
+                    output['message'] = 'Norm of gradient less tan epsilon'
+                    break
+#                 print "dual gap = "+str(dGap)+ " and m/t = " +str(m/t)
+#                 break
+            t *= mu
         else:
             t *= mu
-        
+
         # print scipy.linalg.norm(_rDualFunc(x, grad, z, G, y, A))
         
         if scipy.linalg.norm(_rDualFunc(x, grad, z, G, y, A))<=EPSILON:
+            output['message'] = 'Norm of dual residual less than epsilon'
             break
-
+        
+        if numpy.any(y<0):
+            output['note'] = 'Negative Lagrangian multiplier'
+            # break
+        
+        ##########
         # end of outer iteration
+        ##########
 
     # TODO: full_output- dual variables
     if full_output:
@@ -219,12 +245,8 @@ def ipBar(func, grad, hessian=None, x0=None,
             y = y/t
             output['y'] = y.ravel()
 
-        gap = _dualityGap(func, x,
-                          z, G, h,
-                          y, A, b)
-        
+        output['dgap'] = dGap            
         output['subopt'] = m/t
-        output['dgap'] = gap
         output['fx'] = func(x)
         output['H'] = H
         output['g'] = gOrig.ravel()

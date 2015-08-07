@@ -16,6 +16,9 @@ def ip(func, grad, hessian=None, x0=None,
     '''
     An interface to the methods provides in this sub-package.
     '''
+    if disp==None:
+        disp = 0
+        
     if method=='bar':
         return ipBar(func, grad, hessian, x0,
                      lb, ub,

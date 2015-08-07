@@ -88,6 +88,7 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
 
     if A is not None:
         bTemp = b - A.dot(x)
+        ATemp = matrix(numpy.append(numpy.array([0]*len(A)).reshape(len(A),1),A,axis=1))
     else:
         bTemp = None
 
@@ -114,14 +115,25 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
         [None,H]
     ]).todense()))
 
+#     print H
+#     print numpy.append(numpy.array([0]*m).reshape(m,1),numpy.array(GTemp),axis=1)
+#     print numpy.array(GTemp1)
     GTemp1 = matrix(numpy.append(numpy.append(numpy.array([0]*m).reshape(m,1),numpy.array(GTemp),axis=1),
                                  numpy.array(GTemp1),
                                  axis=0))
 
     hTemp1 = matrix(numpy.append(hTemp,hTemp1))
     
+#     print "c"
+#     print c
+#     print "GTemp1"
+#     print GTemp1
+#     if A is not None:
+#         print "ATemp"
+#         print ATemp
+    
     if A is not None:
-        out = solvers.conelp(c, GTemp1, hTemp1, dims1, matrix(A), matrix(bTemp))
+        out = solvers.conelp(c, GTemp1, hTemp1, dims1, ATemp, matrix(bTemp))
     else:
         out = solvers.conelp(c, GTemp1, hTemp1, dims1)
 
@@ -130,19 +142,30 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
 
     M = _diffM(g.flatten(), H)
     
-    newFx = func((x + deltaX).ravel())
+    newFx = func((x + deltaX))
+    descentScalar = M(deltaX)
     
-    predRatio = (fx - newFx) / M(deltaX)
-    # print "predRatio = " +str(predRatio)
+    predRatio = (fx - newFx) / descentScalar 
+#     print "fx = "+str(fx)+ " and newFx = "+str(newFx)+ " M = "+str(descentScalar)
+#     print "predRatio = " +str(predRatio)+  " radius = "+str(radius)+ "\n"
+
+    # if descentScalar>0:
+    #    predRatio = 0
         
     if predRatio>=0.75:
-        radius = min(2.0*radius, maxRadius)
+        if descentScalar>0:
+            radius = min(2.0*radius, maxRadius)
+        else:
+            radius *= 0.25
     elif predRatio<=0.25:
         radius *= 0.25
     elif numpy.isnan(predRatio):
         radius *= 0.25
+    else:
+        if descentScalar<=0:
+            radius *= 0.25
 
-    if predRatio>=0.25:
+    if predRatio>=0.25 and descentScalar>0:
         oldGrad = g.copy()
         x += deltaX
         oldFx = fx
@@ -151,9 +174,11 @@ def _updateTrustRegionSOCP(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, fu
     else:
         update = False
 
+    # print "predRatio = " +str(predRatio)+ " and update = "+str(update)
+
     if G is not None:
         # only want the information for the inequalities
-        # and not the two cones - trust region, objective functionn
+        # and not the two cones - trust region, objective function
         z[:] = numpy.array(out['z'])[G.shape[0]]
     if A is not None:
         y[:] = numpy.array(out['y'])
@@ -167,7 +192,7 @@ def _updateTrustRegion(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, 
 
     _runOptions()
 
-    # readjust the bounds and initial value if possible
+    # re-adjust the bounds and initial value if possible
     # as we try our best to use warm start
     GTemp = numpy.append(numpy.zeros((1,p)), numpy.eye(p), axis=0)
     hTemp = numpy.zeros(p+1)
@@ -193,9 +218,13 @@ def _updateTrustRegion(x, fx, oldFx, oldDeltaX, p, radius, g, oldGrad, H, func, 
         else:
             qpOut = solvers.coneqp(matrix(H), matrix(g), matrix(GTemp), matrix(hTemp), dims)
     except Exception as e:
+        print "Hessian"
+        print H
+        print "eigenvalues of the Hessian"
+        print scipy.linalg.eig(H)[0]
         raise e
 
-    # exact the descent diretion and do a line search
+    # exact the descent direction and do a line search
     deltaX = numpy.array(qpOut['x'])
     # diffM is the difference between the real objective
     # function and M, the quadratic approximation 

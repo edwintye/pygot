@@ -9,8 +9,9 @@ from pygotools.optutils.checkUtil import checkArrayType
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
 from .approxH import *
-from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
-from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc
+from .ipUtil import _logBarrier, _logBarrierGrad, _findInitialBarrier
+from .ipUtil import _dualityGap, _rCentFunc, _rDualFunc, _surrogateGap
+from .convexUtil import _checkInitialValue,  _setup
 
 import numpy
 
@@ -18,7 +19,7 @@ import scipy.linalg, scipy.sparse
 
 from cvxopt import solvers
 
-solvers.options['show_progress'] = True
+solvers.options['show_progress'] = False
 
 EPSILON = 1e-6
 maxiter = 100
@@ -114,75 +115,6 @@ def ipPD(func, grad, hessian=None, x0=None,
                                                                          z, G, h,
                                                                          y, A, b, t)
 
-        # ## standard log barrier, \nabla f(x) / -f(x)
-        # if G is not None:
-        #     s = h - G.dot(x)
-        #     Gs = G/s
-        #     zs = z/s
-        #     # now find the matrix/vector of our qp
-        #     Haug += numpy.einsum('ji,ik->jk',G.T, G*zs)
-        #     Dphi = Gs.sum(axis=0).reshape(p,1)
-        #     g += Dphi / t
-
-        # ## solving the QP to get the descent direction
-        # if A is not None:
-        #     bTemp = _rPriFunc(x, A, b)
-        #     g += A.T.dot(y)
-        #     #print "here"
-        #     LHS = scipy.sparse.bmat([[Haug,A.T],[A,None]],'csc')
-        #     RHS = numpy.append(g,bTemp,axis=0)
-        #     # print LHS
-        #     # print RHS
-        #     # if the total number of elements (in sparse format) is
-        #     # more than half total possible elements, it is a dense matrix
-        #     if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-        #         deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
-        #     else:
-        #         deltaTemp = scipy.linalg.solve(LHS.todense(),-RHS).reshape(len(RHS),1)
-        #     deltaX = deltaTemp[:p]
-        #     deltaY = deltaTemp[p::]
-        # else:
-        #     deltaX = scipy.linalg.solve(Haug,-g).reshape(p,1)
-
-        # # store the information for the next iteration
-        # oldFx = fx
-        # oldGrad = gOrig.copy()
-
-        # if G is None:
-        #     maxStep = 1
-        #     barrierFunc = _logBarrier(x, func, t, G, h)
-        #     lineFunc = lineSearch(maxStep, x, deltaX, barrierFunc)
-        #     searchScale = deltaX.ravel().dot(g.ravel())
-        # else:
-        #     maxStep = _maxStepSize(z, x, deltaX, t, G, h)
-        #     lineFunc = residualLineSearch(maxStep,
-        #                                       x, deltaX,
-        #                                       grad, t,
-        #                                       z, _deltaZFunc, G, h,
-        #                                       y, deltaY, A, b)
-
-        #     searchScale = -lineFunc(0.0)
-
-        # # perform a line search.  Because the minimization routine
-        # # in scipy can sometimes be a bit weird, we assume that the
-        # # exact line search can sometimes fail, so we do a
-        # # back tracking line search if that is the case
-        # step, fx =  exactLineSearch(maxStep, lineFunc)
-        # if fx >= oldFx or step <=0:
-        #     step, fx =  backTrackingLineSearch(maxStep, lineFunc, searchScale)
-
-        # # found one iteration, now update the information
-        # if z is not None:
-        #     z += step * _deltaZFunc(x, deltaX, t, z, G, h)
-        # if y is not None:
-        #     y += step * deltaY
-
-#         print "deltaX"
-#         print deltaX
-#         print "deltaZ"
-#         print _deltaZFunc(x, deltaX, t, z, G, h)
-        
-        # x += step * deltaX
         i += 1
         dispObj.d(i, x , fx, deltaX.ravel(), g.ravel(), step)
 

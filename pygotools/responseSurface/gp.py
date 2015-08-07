@@ -50,14 +50,14 @@ class GP(object):
 
     def negLogLike(self, theta):
         beta, phi, sigma2, tau2 = self._unrollParam(theta, self._numBeta)
-        G = sigma2*self._rbfFun.f(phi,self._D);
+        G = sigma2*self._rbfFun.f(phi, self._D);
         if tau2 is None:
             H = G
         else:
             H = tau2*numpy.eye(self._n) + G;
 
         try:
-            ll = -scipy.stats.multivariate_normal.logpdf(self._y,self._x1.dot(beta),H,False)
+            ll = -scipy.stats.multivariate_normal.logpdf(self._y, self._x1.dot(beta), H, False)
             self._beta = beta
             self._phi = phi
             self._sigma2 = sigma2

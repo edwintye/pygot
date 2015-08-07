@@ -3,14 +3,14 @@ __all__ = [
     'ipPDC'
     ]
 
-from pygotools.optutils.optCondition import lineSearch, exactLineSearch2, exactLineSearch, backTrackingLineSearch, sufficientNewtonDecrement
-
 from pygotools.optutils.checkUtil import checkArrayType, _checkFunction2DArray
 from pygotools.optutils.disp import Disp
 from pygotools.gradient.finiteDifference import forwardGradCallHessian, forward
-from .approxH import *
-from .convexUtil import _setup, _logBarrier, _findInitialBarrier, _surrogateGap, _checkInitialValue
-from .convexUtil import _rDualFunc, _rCentFunc, _rPriFunc
+
+from .convexUtil import _setup, _checkInitialValue, _checkFuncGradHessian
+from .ipUtil import  _logBarrier, _findInitialBarrier
+from .ipUtil import _surrogateGap, _rDualFunc, _rCentFunc, _rPriFunc, _checkDualFeasible
+from .ipUtil import _solveKKTAndUpdatePDC, _maxStepSizePDC, _residualLineSearchPDC
 
 import numpy
 
@@ -32,32 +32,9 @@ def ipPDC(func, grad, hessian=None, x0=None,
     z, G, h, y, A, b = _setup(lb, ub, G, h, A, b)
     x = _checkInitialValue(x0, G, h, A, b)
     p = len(x)
-
-    func = _checkFunction2DArray(func, x)
+   
+    func, grad, hessian, approxH = _checkFuncGradHessian(x, func, grad, hessian)
     fx = func(x)
-
-    if grad is None:
-        def finiteForward(x,func,p):
-            def finiteForward1(x):
-                return forward(func,x.ravel())
-            return finiteForward1
-        grad = finiteForward(x,func,p)
-    else:
-        grad = _checkFunction2DArray(grad,x)
-
-    if hessian is None:
-        approxH = BFGS
-    elif type(hessian) is str:
-        if hessian.lower()=='bfgs':
-            approxH = BFGS
-        elif hessian.lower()=='sr1':
-            approxH = SR1
-        elif hessian.lower()=='dfp':
-            approxH = DFP
-        else:
-            raise Exception("Input name of hessian is not recognizable")
-    else:
-        hessian = _checkFunction2DArray(func, x)
     
     g = numpy.zeros((p,1))
     gOrig = g.copy()
@@ -106,29 +83,16 @@ def ipPDC(func, grad, hessian=None, x0=None,
         Haug[:] = H.copy()
 
         x, y, z, fx, step, oldFx, oldGrad, deltaX = _solveKKTAndUpdatePDC(x, func, grad,
-                                                                         fx, g, gOrig, Haug,
-                                                                         z, G, h, y,
-                                                                         A, b, t)
+                                                                          fx, g, gOrig, Haug,
+                                                                          z, G, h, y,
+                                                                          A, b, t)
 
         i += 1
-        dispObj.d(i, x , fx, deltaX.ravel(), g.ravel(), step)
+        dispObj.d(i, x , func(x), deltaX.ravel(), g.ravel(), step)
 
         feasible = False
         if G is not None:
-            feasible = True
-            eta = _surrogateGap(x, z, G, h, y, A, b)
-            if eta >= EPSILON:
-                feasible = False
-            if G is not None:
-                r = _rDualFunc(x, grad, z, G, y, A)
-                if scipy.linalg.norm(r) >= EPSILON:
-                    feasible = False
-            if A is not None:
-                r = _rPriFunc(x, A, b)
-                if scipy.linalg.norm(r) >= EPSILON:
-                    feasible = False
-
-            t = mu * m / eta
+            feasible, t = _checkDualFeasible(x, z, G, h, y, A, b, grad, m, mu)
         else:
             if abs(fx-oldFx)<=EPSILON:
                 break
@@ -162,139 +126,3 @@ def ipPDC(func, grad, hessian=None, x0=None,
         return x.ravel(), output
     else:
         return x.ravel()
-
-def _maxStepSizePDC(z, deltaZ, x, deltaX, G, h):
-    index = deltaZ<0
-    step = 0.99 * min(1,min(-z[index]/deltaZ[index]))
-    
-    s = h - G.dot(x + step * deltaX)
-    while numpy.any(s<=0):
-        step *= 0.8
-        s = h - G.dot(x + step * deltaX)
-
-    return step
-
-def _residualLineSearchPDC(step, x, deltaX,
-                       gradFunc, t,
-                       z, deltaZ, G, h,
-                       y, deltaY, A, b):
-    
-    def F(step):
-        newX = x + step * deltaX
-        if G is not None:
-            newZ = z + step * deltaZ
-        else:
-            newZ = z
-
-        if A is not None:
-            newY = y + step * deltaY
-        else:
-            newY = y
-
-        r1 = _rDualFunc(newX, gradFunc, newZ, G, newY, A)
-        if G is not None:
-            s = h - G.dot(newX)
-            r2 = _rCentFunc(newZ, s, t)
-            r1 = numpy.append(r1,r2,axis=0)
-
-        if A is not None:
-            r2 = _rPriFunc(newX, A, b)
-            r1 = numpy.append(r1,r2,axis=0)
-
-        return scipy.linalg.norm(r1)
-    return F
-
-def _solveKKTAndUpdatePDC(x, func, grad, fx, g, gOrig, Haug, z, G, h, y, A, b, t):
-    p = len(x)
-    step = 1
-    deltaX = None
-    deltaZ = None
-    deltaY = None
-
-    rDual = _rDualFunc(x, grad, z, G, y, A)
-    RHS = rDual
-    if G is not None:
-        s = h - G.dot(x)
-        # now find the matrix/vector of our qp
-        rCent = _rCentFunc(z, s, t)
-        RHS = numpy.append(RHS, rCent, axis=0)
-
-    ## solving the QP to get the descent direction
-    if A is not None:
-        g += A.T.dot(y)
-
-        rPri = _rPriFunc(x, A, b)
-        RHS = numpy.append(RHS, rPri, axis=0)
-
-        if G is not None:
-            LHS = scipy.sparse.bmat([
-                    [Haug, G.T, A.T],
-                    [G*-z, scipy.sparse.diags(s.ravel(),0), None],
-                    [A, None, None]
-                    ],'csc')
-            if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-                deltaTemp = scipy.sparse.linalg.spsolve(LHS, -RHS).reshape(len(RHS), 1)
-            else:
-                deltaTemp = scipy.linalg.solve(LHS.todense(), -RHS).reshape(len(RHS), 1)
-                deltaX = deltaTemp[:p]
-                deltaZ = deltaTemp[p:-len(A)]
-                deltaY = deltaTemp[-len(A):]
-        else: # G is None
-            LHS = scipy.sparse.bmat([
-                    [Haug, A.T],
-                    [A, None]
-                    ],'csc')
-            if LHS.size>= (LHS.shape[0] * LHS.shape[1])/2:
-                deltaTemp = scipy.sparse.linalg.spsolve(LHS, -RHS).reshape(len(RHS), 1)
-            else:
-                deltaTemp = scipy.linalg.solve(LHS.todense(), -RHS).reshape(len(RHS),1)
-                deltaX = deltaTemp[:p]
-                deltaY = deltaTemp[p::]
-    else: # A is None
-        if G is not None:
-            LHS = scipy.sparse.bmat([
-                    [Haug, G.T],
-                    [G*-z, scipy.sparse.diags(s.ravel(),0)],
-                    ],'csc')
-            deltaTemp = scipy.sparse.linalg.spsolve(LHS, -RHS).reshape(len(RHS), 1)
-            deltaX = deltaTemp[:p]
-            deltaZ = deltaTemp[p::]
-        else:
-            deltaX = scipy.linalg.solve(Haug, -RHS).reshape(len(RHS), 1)
-
-    # store the information for the next iteration
-    oldFx = fx
-    oldGrad = gOrig.copy()
-
-    if G is None:
-        # print "obj"
-        maxStep = 1
-        barrierFunc = _logBarrier(x, func, t, G, h)
-        lineFunc = lineSearch(maxStep, x, deltaX, barrierFunc)
-        searchScale = deltaX.ravel().dot(g.ravel())
-    else:
-        maxStep = _maxStepSizePDC(z, deltaZ, x, deltaX, G, h)
-        lineFunc = _residualLineSearchPDC(step, x, deltaX,
-                                       grad, t,
-                                       z, deltaZ, G, h,
-                                       y, deltaY, A, b)
-        searchScale = -lineFunc(0.0)
-
-    # perform a line search.  Because the minimization routine
-    # in scipy can sometimes be a bit weird, we assume that the
-    # exact line search can sometimes fail, so we do a
-    # back tracking line search if that is the case
-    step, fx = exactLineSearch2(maxStep, lineFunc, searchScale, oldFx)
-    # step, fx =  exactLineSearch(maxStep, lineFunc)
-    # if fx >= oldFx or step <= 0 or step>=maxStep:
-    #     step, fx =  backTrackingLineSearch(maxStep, lineFunc, searchScale, oldFx)
-
-    if z is not None:
-        z += step * deltaZ
-    if y is not None:
-        y += step * deltaY
-        
-    x += step * deltaX
-
-    return x, y, z, fx, step, oldFx, oldGrad, deltaX
-
