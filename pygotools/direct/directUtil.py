@@ -152,7 +152,7 @@ def identifyPotentialOptimalObjectPareto(objList,EPSILON=1e-4,uniqueDecimal=4,in
         
     return listPotentialOptimalIndex
 
-def plotDirectBox(rectList,lb,ub,scaleOutput=False,paretoIndex=None):
+def plotDirectBox(rectList, paretoIndex=None):
     '''
     Plot the boxes return by the DIRECT algorithm given a two dimensional problem.
 
@@ -164,61 +164,51 @@ def plotDirectBox(rectList,lb,ub,scaleOutput=False,paretoIndex=None):
         lower bounds
     ub: array like
         upper bounds
-    scaleOutput: bool
-        True if the input boxes have been scaled to 0,1
 
     '''
 
-    if (lb.size!=2):
+    if (rectList[0].getLB().size != 2):
         raise Exception("Can only plot objective function of 2 dimension")
     
-    if scaleOutput:
-        lb = numpy.zeros(2)
-        ub = numpy.ones(2)
-    
-    # the whole area
-    x = list()
-    y = list()
-    x.append(lb[0])
-    y.append(lb[1])
-    
-    x.append(lb[0])
-    y.append(ub[1])
-    
-    x.append(ub[0])
-    y.append(ub[1])
-    
-    x.append(ub[0])
-    y.append(lb[1])
-    
-    x.append(lb[0])
-    y.append(lb[1])
+#     lb = numpy.zeros(2)
+#     ub = numpy.zeros(2)
+#     for rectObj in rectList:
+#         
+#     # the whole area
+#     x = list()
+#     y = list()
+#     x.append(lb[0])
+#     y.append(lb[1])
+#     
+#     x.append(lb[0])
+#     y.append(ub[1])
+#     
+#     x.append(ub[0])
+#     y.append(ub[1])
+#     
+#     x.append(ub[0])
+#     y.append(lb[1])
+#     
+#     x.append(lb[0])
+#     y.append(lb[1])
+
     
     f = plt.figure()
 
-    plt.plot(x,y,color='black')
+    # plt.plot(x,y,color='black')
+    lb = numpy.Inf*numpy.ones(2)
+    ub = numpy.Inf*numpy.ones(2)
+    for rectObj in rectList:
+        for i in range(2):
+            if lb[i] > rectObj.getLB()[i]:
+                lb[i] = rectObj.getLB()[i]
+            if ub[i] < rectObj.getUB()[i]:
+                ub[i] = rectObj.getUB()[i]
+    
+    addBox(lb, ub)
     
     for rectObj in rectList:
-        # plot for rectangle i
-        x = list()
-        y = list()
-        
-        x.append(rectObj.getLB()[0])
-        y.append(rectObj.getLB()[1])
-        
-        x.append(rectObj.getLB()[0])
-        y.append(rectObj.getUB()[1])
-        
-        x.append(rectObj.getUB()[0])
-        y.append(rectObj.getUB()[1])
-        
-        x.append(rectObj.getUB()[0])
-        y.append(rectObj.getLB()[1])
-        
-        x.append(rectObj.getLB()[0])
-        y.append(rectObj.getLB()[1])
-
-        plt.plot(x,y,color='black')
+        addBox(rectObj.getLB(), rectObj.getUB(), rectObj.getLocation())
     
     rectLowestObjIndex = findLowestObjIndex(rectList)
     location = rectList[rectLowestObjIndex].getLocation()
@@ -234,7 +224,38 @@ def plotDirectBox(rectList,lb,ub,scaleOutput=False,paretoIndex=None):
     plt.show()
     #plt.savefig("rect")
 
-def plotDirectPolygon(polyList,paretoIndex=None,lb=None,ub=None):
+def addBox(lb, ub, location=None, color='black'):
+    x = list()
+    y = list()
+        
+    x.append(lb[0])
+    y.append(lb[1])
+    
+    x.append(lb[0])
+    y.append(ub[1])
+        
+    x.append(ub[0])
+    y.append(ub[1])
+        
+    x.append(ub[0])
+    y.append(lb[1])
+        
+    x.append(lb[0])
+    y.append(lb[1])
+
+    plt.plot(x,y,color=color)
+    if location is not None:
+        plt.plot(location[0], location[1], 'ro')
+        
+def addCircle(x, y, r):
+    ax = plt.gca()
+    circle = plt.Circle((x,y), r)
+    circle.set_facecolor('none')
+    circle.set_edgecolor('black')
+    circle.set_alpha(1.0)
+    ax.add_artist(circle)
+
+def plotDirectPolygon(polyList, paretoIndex=None, lb=None, ub=None):
     '''
     Plot the boxes return by the DIRECT algorithm given a two dimensional problem.
 
@@ -248,7 +269,7 @@ def plotDirectPolygon(polyList,paretoIndex=None,lb=None,ub=None):
     f = plt.figure()
 
     A,b = polyList[0].getInequality()
-    if (len(A[0,:])!=2):
+    if (len(A[0,:]) != 2):
         raise Exception("Can only plot objective function of 2 dimension")        
 
     for polyObj in polyList:
@@ -280,7 +301,7 @@ def plotDirectPolygon(polyList,paretoIndex=None,lb=None,ub=None):
         plt.xlim([lb[1],ub[1]])
     plt.show()
 
-def plotParetoFrontRect(rectList,paretoIndex=None):
+def plotParetoFrontRect(rectList, paretoIndex=None):
     '''
     Plot the Pareto front formed by the input boxes
 
@@ -304,7 +325,7 @@ def plotParetoFrontRect(rectList,paretoIndex=None):
     #plt.xlim(0,0.04)
     plt.show()
 
-def plotParetoFrontPoly(polyList,paretoIndex=None):
+def plotParetoFrontPoly(polyList, paretoIndex=None):
     '''
     Plot the Pareto front formed by the input boxes
 
@@ -328,5 +349,6 @@ def plotParetoFrontPoly(polyList,paretoIndex=None):
     #plt.ylim(0,1000)
     #plt.xlim(0,0.04)
     plt.show()
+
 
 

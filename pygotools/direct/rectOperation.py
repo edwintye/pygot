@@ -13,7 +13,7 @@ from directUtil import identifyPotentialOptimalObjectPareto
 
 class RectangleObj(object):
 
-    def __init__(self,fx,lb,ub,location=None):
+    def __init__(self, fx, lb, ub, location=None, g=None, H=None):
         self._ub = None
         self._lb = None
         
@@ -24,7 +24,13 @@ class RectangleObj(object):
             self._dimension = len(lb)
         else:
             raise Exception("Expecting lower bounds to be of type numpy.ndarray")
-            
+        
+        if numpy.any(lb > ub):
+            for i in range(self._dimension):
+                if lb[i] > ub[i]:                
+                    lbT = lb[i]
+                    lb[i] = ub[i]
+                    ub[i] = lbT
         self.setLB(lb)
         self.setUB(ub)
 
@@ -37,21 +43,32 @@ class RectangleObj(object):
         self._volume = self.computeVolume(lb, ub)
 
         self._fx = fx
-
-    def setFx(self,value):
-        self._fx = copy.deepcopy(value)
+        self._g = g
+        self._H = H
 
     def getFx(self):
         return copy.deepcopy(self._fx)
     
-    def getMeasure(self):
-        return copy.deepcopy(self._volume)        
+    def setFx(self, value):
+        self._fx = copy.deepcopy(value)
+    
+    def getGradient(self):
+        return self._g
 
+    def setGradient(self, g):
+        self._g = g
+
+    def getHessian(self):
+        return self._H
+
+    def setHessian(self, H):
+        self._H = H
+    
     #@property
     def getLB(self):
         return copy.deepcopy(self._lb)
     
-    def setLB(self,value):
+    def setLB(self, value):
         self._checkDimension(value)
         self._lb = copy.deepcopy(value)
         return None
@@ -71,9 +88,6 @@ class RectangleObj(object):
         self._location = value
         return None
     
-    def computeLocation(self,lb,ub):
-        return (ub-lb)/2
-    
     def getVolume(self):
         return copy.deepcopy(self._volume)
     
@@ -85,6 +99,16 @@ class RectangleObj(object):
         diffBound = numpy.abs(ub - lb)
         return diffBound.prod()
     
+    def getMeasure(self):
+        return copy.deepcopy(self._volume)
+    
+    def computeLocation(self,lb,ub):
+        '''
+        Assume that the location of the box is the center
+        of the box
+        '''
+        return (ub+lb)/2    
+    
     def _checkDimension(self,value):
         if type(value) is numpy.ndarray:
             if len(value) != self._dimension:
@@ -93,7 +117,7 @@ class RectangleObj(object):
             raise Exception("Expecting type numpy.ndarray")
 
 
-def divideGivenRectangle(func,rectObj,scaleLB,boundDiff):
+def divideGivenRectangle(func, rectObj, scaleLB, boundDiff):
     # TODO: This process is in serial.  Should be able to make a parallel 
     # process out of it fairly simply (saying that, I gave up after 10 min)
     # find out which of the dimensionsn
@@ -106,43 +130,51 @@ def divideGivenRectangle(func,rectObj,scaleLB,boundDiff):
     for j in range(0,len(operateDimensionIndex)):
         # find out the dimension which we wish to operate on 
         i = operateDimensionIndex[j]
+        # print("index = " +str(i))
             
+        # manipulating the central rectangle
+        newLocation = rectObj.getLocation()
+        newLB = rectObj.getLB()
+        newUB = rectObj.getUB()
+
         # Plus side, which we name it as 1
-        location = rectObj.getLocation()
         ub = rectObj.getUB()
         lb = rectObj.getLB()
-        location[i] += (ub[i]-lb[i])/float(3)
-
-        # print("i = " +str(i))
+        lb[i] = lb[i] + (ub[i]-lb[i])*(2.0/3.0)
         
-        ###print("plus location = " +str(location))
+        location = rectObj.getLocation()
+        location[i] = (ub[i] + lb[i])/2.0
         
+        # print("plus location = " +str(location))
         # print("plus ub = " +str(ub))
         # print("plus lb = " +str(lb))
-        # print("adj = " +str((ub[i]-lb[i])))
-        # print("adj = " +str((ub[i]-lb[i])/float(3)))
-
-        lb[i] = rectObj.getLocation()[i] + (location[i] - rectObj.getLocation()[i])/2
-        fx = func(inverseScaleLocation(location,scaleLB,boundDiff))
+        
+        fx = func(inverseScaleLocation(location, scaleLB, boundDiff))
         rectObj1 = RectangleObj(fx,lb,ub,location)
             
         # Negative side, which we name it as 2
         location = rectObj.getLocation()
         ub = rectObj.getUB()
         lb = rectObj.getLB()
-        location[i] -= (ub[i]-lb[i])/float(3)
-        
-        ###print("minus location = " +str(location))
-        
         # this is the line that is different to the one above
-        ub[i] = rectObj.getLocation()[i] + (location[i] - rectObj.getLocation()[i])/2
-        fx = func(inverseScaleLocation(location,scaleLB,boundDiff))
+        ub[i] = lb[i] + (ub[i]-lb[i])*(1.0/3.0)
+        location[i] = (ub[i] + lb[i])/2.0
+        
+        # print("minus location = " +str(location))
+        # print("minus ub = " +str(ub))
+        # print("minus lb = " +str(lb))
+        
+        fx = func(inverseScaleLocation(location, scaleLB, boundDiff))
         rectObj2 = RectangleObj(fx,lb,ub,location)  
 
         # fix the original object
-        newUB = rectObj1.getLB()
-        newLB = rectObj2.getUB()
-        newLocation = rectObj.getLocation()
+        newUB[i] = rectObj1.getLB()[i]
+        newLB[i] = rectObj2.getUB()[i]
+        
+        # print("center location = " +str(newLocation))
+        # print("center ub = " +str(newUB))
+        # print("center lb = " +str(newLB))
+        
         newFx = rectObj.getFx()
         rectObj = RectangleObj(newFx,newLB,newUB,newLocation)            
         # add new object per dimension
@@ -176,9 +208,9 @@ def scaleLocation(location,scaleLB,boundDiff):
 
     '''
 
-    return (location + scaleLB) / boundDiff
+    return (location - scaleLB) / boundDiff
 
-def inverseScaleLocation(location,scaleLB,boundDiff):
+def inverseScaleLocation(location, scaleLB, boundDiff):
     '''
     Reverse the scaling operation of one input.
 
@@ -197,10 +229,10 @@ def inverseScaleLocation(location,scaleLB,boundDiff):
 
     '''
 
-    return location * boundDiff - scaleLB
+    return location * boundDiff + scaleLB
 
     
-def inverseScaleBounds(rectObj,scaleLB,boundDiff):
+def inverseScaleBounds(rectObj, scaleLB, boundDiff):
     '''
     Reverse the scaling operation for the whole object.
 
@@ -219,9 +251,9 @@ def inverseScaleBounds(rectObj,scaleLB,boundDiff):
 
     '''
 
-    rectObj.setLB(inverseScaleLocation(rectObj.getLB(),scaleLB,boundDiff))
-    rectObj.setUB(inverseScaleLocation(rectObj.getUB(),scaleLB,boundDiff))
-    rectObj.setLocation(inverseScaleLocation(rectObj.getLocation(),scaleLB,boundDiff))
+    rectObj.setLB(inverseScaleLocation(rectObj.getLB(), scaleLB, boundDiff))
+    rectObj.setUB(inverseScaleLocation(rectObj.getUB(), scaleLB, boundDiff))
+    rectObj.setLocation(inverseScaleLocation(rectObj.getLocation(), scaleLB, boundDiff))
     return rectObj
     
 def identifyDimensionToSplit(rectObj):
@@ -347,3 +379,4 @@ def identifyPotentialOptimalRectangleLipschitz(rectList,lipschitzConstant=None,s
                 listPotentialOptimalIndex.append(j)
                  
     return(listPotentialOptimalIndex)
+

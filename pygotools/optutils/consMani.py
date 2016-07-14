@@ -224,9 +224,9 @@ def feasibleStartingValue(G, h, allowQuasiBoundary=False, isMin=True):
     # equal weight for each dimension
     p = len(G[0,:])
     if isMin:
-        x0 = matrix(numpy.ones(p))
+        f = matrix(numpy.ones(p))
     else:
-        x0 = matrix(-numpy.ones(p))
+        f = matrix(-numpy.ones(p))
     # change the type to make it suitable for cvxopt
     if type(G) is numpy.ndarray:
         G = matrix(G)
@@ -248,7 +248,7 @@ def feasibleStartingValue(G, h, allowQuasiBoundary=False, isMin=True):
         return numpy.array(x)
     else:
         # print "Solving lp to get starting value"
-        sol = solvers.conelp(x0,G,h)
+        sol = solvers.conelp(f,G,h)
         # check if see if the solution exist
         if sol['status']=="optimal":
             pass
@@ -842,5 +842,77 @@ def distanceToPlane(x,G,h):
     numFace = len(h)
     distanceToPlane = abs(G.dot(x.T) - numpy.reshape(h,(numFace,1)))
     return distanceToPlane
+
+def pointInSCO(x, A, b=None, c=None, d=1.0):
+    if b is None:
+        r = numpy.dot(A,x)
+    else:
+        r = numpy.dot(A,x) + b
+
+    if c is None:
+        rho = d
+    else:
+        rho = numpy.dot(c,x) + d
+
+    return numpy.dot(r,r) <= rho
+
+def polytopeInSCO(G, h, A, b=None, c=None, d=1.0):
+    # it is sufficient to find out whether all the vertices
+    # are inside the ball
+    V = constraintToVertices(G, h)
+    
+    t = numpy.array([pointInSCO(v, A, b, c, d) for v in V])
+    return numpy.all(t == True)
+
+def polytopeIntersectSOC(G, h, A, b=None, c=None, d=1.0):
+    '''
+    Test whether the inequality :math:`Gx \le h` and the second order cone
+    (SOC) :math:`\| Ax + b \|^{2} \le cx + d`, which defines a ball with
+    radius c centered at b, intersects. 
+
+    Parameters
+    ----------
+    G: :class:`numpy.ndarray`
+        G in inequality Gx \le h
+    h: :class:`numpy.ndarray`
+        h in inequality Gx \le h
+    A: :class:`numpy.ndarray`
+        A in \| Ax + b \|^{2} \le cx + d
+    b: :class:`numpy.ndarray`
+        Defaults to None. b in \| Ax + b \|^{2} \le cx + d
+    c: :class:`numpy.ndarray`
+        Defaults to None.  c in \| Ax + b \|^{2} \le cx + d. 
+    d: :class:`numpy.ndarray`
+        Defaults to 1, i.e. the unit ball.  d in \| Ax + b \|^{2} \le cx + d
+
+    '''
+    if b is None:
+        b = numpy.zeros(len(A))
+    if c is None:
+        c = numpy.zeros((1, len(A)))
+        if d <= 0.0:
+            raise Exception("d must be greater than 0 when c is None")
+
+    # need to rework the second order cone into format that is
+    # accepted by cvxopt 
+    A1 = numpy.append(c, A, axis=0)
+    b1 = numpy.append(d, -b)
+    
+    # combining the constraints into one
+    G1 = numpy.append(G, A1, axis=0)
+    h1 = numpy.append(h, b1)
+
+    # define the dimension of the constraints
+    dims = {'l': len(G), 'q': [len(A1)], 's': []}
+    # we wish to find the solution to
+    # \min x s.t. constraints
+    sol = solvers.conelp(matrix(numpy.ones(len(A))),
+                         matrix(G1), matrix(h1), 
+                         dims)
+
+    if sol['status'] == 'optimal':
+        return True
+    else:
+        return False
 
 

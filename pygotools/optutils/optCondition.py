@@ -1,4 +1,3 @@
-from _ctypes_test import func
 __all__ = [
     'lineSearch',
     'exactLineSearch',
